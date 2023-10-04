@@ -1,0 +1,30 @@
+[package]
+name = "baguette-core"
+version = "0.1.9"
+edition = "2021"
+keywords = ["gamedev", "graphics"]
+
+[workspace.package]
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+spin_sleep = "*"
+pollster = "*"
+
+baguette-proc = { path = "crates/baguette-proc" }
+rendering ={ package = "baguette-rendering", path = "crates/baguette-rendering" }
+math ={ package = "baguette-math", path = "crates/baguette-math" }
+input ={ package = "baguette-input", path = "crates/baguette-input" }
+gameloop ={ package = "baguette-gameloop", path = "crates/baguette-gameloop" }
+audio = { package = "baguette-audio", path = "crates/baguette-audio" }
+
+[workspace]
+members = ["crates/*"]
+
+[workspace.dependencies]
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3 

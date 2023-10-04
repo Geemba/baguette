@@ -1,0 +1,18 @@
+[package]
+name = "baguette-rendering"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+[dependencies]
+wgpu = "*"
+wgpu-types = "*"
+spin_sleep = "*"
+pollster = "*"
+bytemuck ={ version = "*", features = [ "derive" ]}
+image ={ version = "*", features = ["png", "jpeg"]}
+baguette-proc ={ path = "../baguette-proc"}
+baguette-math ={ path = "../baguette-math"}
+gameloop ={ package = "baguette-gameloop", path = "../baguette-gameloop"}
+input ={ package = "baguette-input", path = "../baguette-input"}
+once_cell = "*"
