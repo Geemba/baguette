@@ -3,7 +3,7 @@
 </h1>
 <h2 align="center">🥖🥖A freshly baked rust game engine 🥖🥖</h2></>
   
-<h4 align="center">note: this crate is being used for a game im working on, i will keep updating this engine as i need more content</h4>
+<h4 align="center">note: this crate is being used for a game i'm working on, i will keep updating this engine as more content will eventually be required </h4>
 
 
 ## Roadmap
@@ -12,15 +12,23 @@
     - [x] Keyboard
     - [ ] Mouse
     - [ ] Controller
-- [] Audio player
+- [ ] Audio player
     - [x] basic playback
 - [ ] Rendering
-    - [x] Camera
+    - [x] 3d Camera
        - [x] Translation
-       - [x] Orientation
+       - [x] Orientation with Quaternions
        - [x] Zooming
-       - [x] Perspective / Orthographic  
-    - [ ] Spanish
+       - [x] Perspective / Orthographic
+
+    - [x] Sprite Rendering
+       - [x] Gpu instancing
+       - [x] SpriteSheet Animations
+    - [x] Fullscreen
+    - [x] Screen Resizing
+
+- [ ] Coroutines
+- [ ] Tweening
 
 # example:
 
@@ -149,7 +157,5 @@ MIT
 
 ---
 
-> [amitmerchant.com](https://www.amitmerchant.com) &nbsp;&middot;&nbsp;
-> GitHub [@amitmerchant1990](https://github.com/amitmerchant1990) &nbsp;&middot;&nbsp;
-> Twitter [@amit_merchant](https://twitter.com/amit_merchant)
+> GitHub [Geemba](https://github.com/Geemba)
 
