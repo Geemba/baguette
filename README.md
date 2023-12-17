@@ -12,20 +12,24 @@
     - [x] Keyboard
     - [ ] Mouse
     - [ ] Controller
+          
 - [ ] Audio player
     - [x] basic playback
+          
 - [ ] Rendering
     - [x] 3d Camera
        - [x] Translation
        - [x] Orientation with Quaternions
        - [x] Zooming
        - [x] Perspective / Orthographic
+       - [ ] .
 
     - [x] Sprite Rendering
        - [x] Gpu instancing
        - [x] SpriteSheet Animations
     - [x] Fullscreen
     - [x] Screen Resizing
+    - [x] Window Icon  
 
 - [ ] Coroutines
 - [ ] Tweening
