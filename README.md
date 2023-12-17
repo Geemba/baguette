@@ -1,10 +1,10 @@
 # baguette
 🥖🥖a freshly baked rust game engine🥖🥖
 
-- |x| keyboard input
+- [x] keyboard input
 
 rendering:
-- |x| camera with quaternion support,
-- |x| sprites,
-- |x| spritesheets,
+- [x] camera with quaternion support,
+- [x] sprites,
+- [x] spritesheets,
 
