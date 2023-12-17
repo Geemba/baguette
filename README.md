@@ -59,8 +59,8 @@ $ npm start
 
 ## If you are looking for rust game engines..
 
-- [Bevy]([https://github.com/amitmerchant1990/pomolectron](https://github.com/bevyengine/bevy)) - The bevy engine
-- [Macroquad]([https://github.com/amitmerchant1990/correo](https://github.com/not-fl3/macroquad)) - A menubar/taskbar Gmail App for Windows and macOS
+- [Bevy](https://github.com/amitmerchant1990/pomolectron](https://github.com/bevyengine/bevy)) - The bevy engine
+- [Macroquad](https://github.com/amitmerchant1990/correo](https://github.com/not-fl3/macroquad)) - A menubar/taskbar Gmail App for Windows and macOS
 
 ## License
 
