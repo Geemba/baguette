@@ -1,2 +1,2 @@
 # baguette
-a freshly baked rust game engine
+🥖🥖a freshly baked rust game engine🥖🥖
