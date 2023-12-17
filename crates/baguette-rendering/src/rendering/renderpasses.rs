@@ -1,44 +1,60 @@
-use wgpu::*;
-
 pub use crate::*;
 
-#[path = "renderpasses/spritepass.rs"]
+#[path = "2d/spritepass.rs"]
 pub mod spritepass;
+pub use spritepass::*;
+
 #[path = "renderpasses/resolutionpass.rs"]
 pub mod resolutionpass;
 
-pub struct RenderPasses
+pub enum Passes
 {
-    renderpasses : Vec<Box<dyn RenderPass>>
+    SpriteSheet(SpritePass)
 }
 
-impl RenderPasses 
+impl Passes
 {
-    pub fn new() -> Self { Self { renderpasses : vec![]} }
-
-    pub fn add_pass<'a>(&mut self, pass : impl RenderPass + 'a + 'static)
+    pub(crate) fn draw(&self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) -> Result<(), wgpu::SurfaceError>
     {
-        self.renderpasses.push(Box::new(pass))
+        match self
+        {
+            Self::SpriteSheet(pass) => RenderPass::draw(pass, encoder, view),
+        }
     }
+}
 
-    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, Box<dyn RenderPass>>
-    {
-        self.renderpasses.iter_mut()
-    }
+pub(crate) struct RenderPasses
+{
+    pub renderpasses: Vec<Passes>
+}
 
-    pub fn iter(&self) -> std::slice::Iter<'_, Box<dyn RenderPass>>
+impl RenderPasses
+{
+    pub const fn new() -> Self { Self { renderpasses: vec![]} }
+    
+    /// immutable iteration
+    pub fn iter(&self) -> std::slice::Iter<'_, Passes>
     {
         self.renderpasses.iter()
     }
+
+    /// mutable iteration
+    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, Passes>
+    {
+        self.renderpasses.iter_mut()
+    }    
 }
 
 pub trait RenderPass
 {
+    fn add_pass() -> Passes where Self: Sized;
+    
+    #[allow(clippy::cast_possible_truncation)]
     fn draw
     (
         &self,
-        encoder : &mut CommandEncoder,
-        view : &TextureView
+        encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView
         
     ) -> Result<(), wgpu::SurfaceError>;
 }

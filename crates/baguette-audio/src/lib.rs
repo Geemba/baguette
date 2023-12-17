@@ -1,23 +1,32 @@
-unsafe impl Sync for AudioPlayer{}
+unsafe impl<const MAX_PLAYABLE_CLIPS : usize> Sync for AudioPlayer<MAX_PLAYABLE_CLIPS>{}
 
-pub struct AudioPlayer
+/// to change the max amount of playable clips simoultaneosly set a custom value for [MAX_PLAYABLE_CLIPS]
+pub struct AudioPlayer<const MAX_PLAYABLE_CLIPS : usize = 4>
 {
-    clips : Box<[rodio::Sink]>,
+    clips : [rodio::Sink; MAX_PLAYABLE_CLIPS],
     // these dudes need to stay here without dropping or audio playback will no longer work.
     #[allow(dead_code)] stream : rodio::OutputStream,
     #[allow(dead_code)] handle : rodio::OutputStreamHandle,
 }
 
-impl AudioPlayer
+impl<const MAX_PLAYABLE_CLIPS : usize> Default for AudioPlayer<MAX_PLAYABLE_CLIPS>
+{
+    fn default() -> Self 
+    {
+        Self::new()
+    }
+}
+
+impl<const MAX_PLAYABLE_CLIPS : usize> AudioPlayer<MAX_PLAYABLE_CLIPS>
 {   
     /// returns an audio player with the specified amount of simultaneously playable clips.
-    /// setting the value to zero will set it to one instead
-    pub fn new(max_playable_clips : usize) -> Self
+    /// setting the value to zero will set it to one instead.
+    /// 
+    /// the max amount of playable clips simoultaneosly is set by the constant value on the struct
+    pub fn new() -> Self
     {  
         let (stream, handle) = rodio::OutputStream::try_default().unwrap();
-        let clips = (0..max_playable_clips)
-            .map(|_| rodio::Sink::try_new(&handle).unwrap())
-            .collect::<Box<[rodio::Sink]>>();
+        let clips = std::array::from_fn(|_| rodio::Sink::try_new(&handle).unwrap());
 
         Self { clips, stream, handle }
     }
@@ -32,11 +41,12 @@ impl AudioPlayer
         let source = rodio::Decoder::new(match std::fs::File::open(path)
         {
             Ok(file) => file,
-            Err(err) => panic!("{}", err)
+            Err(err) => panic!("{err}")
         }).unwrap();
 
-        self.clips.iter()
-        .find(|sink| sink.empty())
-        .and_then(|sink| Some(sink.append(source)));
+        if let Some(sink) = self.clips.iter().find(|sink| sink.empty())
+        {
+            sink.append(source)
+        }
     }
 }

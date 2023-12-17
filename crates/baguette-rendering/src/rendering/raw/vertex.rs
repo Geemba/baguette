@@ -1,11 +1,12 @@
 #[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, PartialEq)]
 pub struct Vertex
 {
     pub position: [f32; 3],
     pub tex_coords: [f32; 2],
 }
 
+#[allow(clippy::nonstandard_macro_braces)]
 pub fn vertices_from_size(size : baguette_math::Vec2) -> Vec<Vertex>
 {
     vec!
@@ -20,14 +21,11 @@ pub fn vertices_from_size(size : baguette_math::Vec2) -> Vec<Vertex>
 /// creates a 4 vertices index buffer from a texture
 pub fn indices_from_texture() -> Vec<u16>
 {
-    vec!
-    [
-        0, 1 ,2 , 2, 3 ,0
-    ]
+    vec![0, 1 ,2 , 2, 3 ,0]
 }
 
 /// return how to read the vertex data to the gpu
-pub fn vertex_layout_desc<'a>() -> wgpu::VertexBufferLayout<'a> 
+pub const fn vertex_layout_desc<'a>() -> wgpu::VertexBufferLayout<'a> 
 {
     wgpu::VertexBufferLayout 
     {

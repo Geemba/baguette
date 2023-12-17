@@ -2,11 +2,15 @@
 //! baguette's input module
 
 use winit::dpi::PhysicalSize;
-pub use winit::event::{*, VirtualKeyCode as KeyCode};
+use winit::keyboard::PhysicalKey;
+
+pub use winit::event::*;
+pub use winit::keyboard::KeyCode;
+
 pub use winit;
 
     // callbacks to application events
-    static mut ON_SCREEN_RESIZE : once_cell::sync::Lazy<Callback<PhysicalSize<u32>>> = once_cell::sync::Lazy::new(|| Callback::new());
+    static mut ON_SCREEN_RESIZE : once_cell::sync::Lazy<Callback<PhysicalSize<u32>>> = once_cell::sync::Lazy::new(Default::default);
 
     /// callback to execute a function when the window is resized
     /// 
@@ -16,84 +20,117 @@ pub use winit;
         unsafe { &mut ON_SCREEN_RESIZE }
     }
 
+pub static mut INPUT : once_cell::sync::OnceCell<Input> = once_cell::sync::OnceCell::new();
+
+/// returns `true` the first frame the key is pressed
+/// 
+/// use [get_key_holding] to check if the key is pressed in the current frame
+pub fn get_key_down(keycode : KeyCode) -> bool
+{
+    unsafe { INPUT.get_mut().unwrap().get_key_down(keycode) }
+}
+
+/// returns `true` if the key is pressed in the current frame
+pub fn get_key_holding(keycode : KeyCode) -> bool
+{
+    unsafe { INPUT.get_mut().unwrap().get_key_holding(keycode) }
+}
+
+/// returns `true` when the key is released
+/// 
+/// use [get_key_holding] to check if the key is pressed in the current frame
+pub fn get_key_up(keycode : KeyCode) -> bool
+{
+    unsafe { INPUT.get_mut().unwrap().get_key_up(keycode) }
+}
+
+pub fn input_axis() -> baguette_math::Vec2
+{
+    baguette_math::Vec2::new(horizontal_axis(), vertical_axis())
+}
+
+pub fn horizontal_axis() -> f32
+{
+    let mut x = 0.;
+
+    x -= match get_key_holding(KeyCode::KeyA)
+    {
+        true => 1.,
+        false => 0.
+    };
+    x += match get_key_holding(KeyCode::KeyD)
+    {
+        true => 1.,
+        false => 0.
+    };
+
+    x
+}
+
+pub fn vertical_axis() -> f32
+{
+    let mut y = 0.;
+
+    y -= match get_key_holding(KeyCode::KeyW)
+    {
+        true => 1.,
+        false => 0.
+    };
+    y += match get_key_holding(KeyCode::KeyS)
+    {
+        true => 1.,
+        false => 0.
+    };
+
+    y
+}
+
 /// the input system of the engine
 pub struct Input
 {
-    current_pressed_keys : ahash::AHashMap<KeyCode, State>,
-    pressed_mouse_buttons : ahash::AHashMap<MouseButton, State>,
+    current_pressed_keys: ahash::AHashMap<PhysicalKey, InputState>,
+    pressed_mouse_buttons: ahash::AHashMap<MouseButton, InputState>,
 }
 
-static mut INPUT : std::sync::OnceLock<Input> = std::sync::OnceLock::new();
-
-pub fn input() -> &'static Input
+impl Default for Input
 {
-    unsafe { INPUT.get() }.expect("input checking is not initialized")
-}
-
-pub fn input_mut() -> &'static mut Input
-{
-    unsafe { INPUT.get_mut() }.expect("input checking is not initialized")
-}
-
-/// returns `true` if the key is being pressed
-pub fn get_key_holding(keycode : KeyCode) -> bool
-{
-    input().current_pressed_keys.get(&keycode).is_some()
-}
-
-/// returns `true` the frame the key is released
-pub fn get_key_up(keycode : KeyCode) -> bool
-{
-    match input().current_pressed_keys.get(&keycode)
+    fn default() -> Self 
     {
-        Some(state) => state.released,
-        None => false
-    }
-}
-
-/// returns `true` the first frame the button is pressed,
-pub fn get_key_down(keycode : KeyCode) -> bool
-{
-    let state = input_mut().current_pressed_keys.get_mut(&keycode);
-
-    match state
-    {
-        Some(State { pressed_this_frame : true, .. }) =>
+        Self
         {
-            // theres a bunch of frame delay before the program checks the input again,
-            // lets change this ourselves to false since it will definitely be after the first fn invocation
-            state.unwrap().pressed_this_frame = false;
-            true
+            current_pressed_keys: ahash::AHashMap::with_capacity(8),
+            pressed_mouse_buttons: ahash::AHashMap::with_capacity(3),
         }
-
-        _ => false
     }
 }
 
 /// represents the current state of an active input
-struct State
+struct InputState
 {
-    pressed_this_frame : bool,
-    released : bool,
+    pressed_this_frame: bool,
+    released: bool
 }
 
 impl Input
 {
+
+    /// initialized the input checker or returns a reference to it
     pub fn init() -> &'static mut Self
     {
-        match unsafe { INPUT.set(Input::new()) }
-        {
-            Ok(()) => unsafe { INPUT.get_mut() }.unwrap(),
-            Err(_) => panic!("input was already initialized"),
-        }  
+        unsafe 
+        {         
+            INPUT.get_or_init(Self::default);
+            INPUT.get_mut().unwrap()
+        }
     }
 
-    pub fn new() -> Self
+    /// returns an input checker with zero capacity
+    pub fn empty() -> Self
     {
         Self
         {
-            current_pressed_keys : ahash::AHashMap::with_capacity(8),
-            pressed_mouse_buttons : ahash::AHashMap::with_capacity(3),
+            current_pressed_keys : ahash::AHashMap::with_capacity(0),
+            pressed_mouse_buttons : ahash::AHashMap::with_capacity(0),
         }
     }
 
@@ -102,20 +139,20 @@ impl Input
     {    
         match event
         {
-            WindowEvent::KeyboardInput { input : KeyboardInput { state, virtual_keycode : Some(key), .. }, .. } =>
+            WindowEvent::KeyboardInput{ event : KeyEvent { physical_key, state,.. }, .. } =>
             {
                 match state
                 {
                     ElementState::Pressed =>
                     {
-                        if let None = self.current_pressed_keys.get(key)
+                        if self.current_pressed_keys.get(physical_key).is_none()
                         {
-                            self.current_pressed_keys.insert(*key, State { pressed_this_frame: true, released: false });
+                            self.current_pressed_keys.insert(*physical_key, InputState { pressed_this_frame: true, released: false });
                         }
                     }
                     ElementState::Released =>
                     {
-                        if let Some(State { released, .. }) = self.current_pressed_keys.get_mut(key)
+                        if let Some(InputState { released, .. }) = self.current_pressed_keys.get_mut(physical_key)
                         {
                             *released = true;
                         }
@@ -129,14 +166,14 @@ impl Input
                 {
                     ElementState::Pressed =>
                     {
-                        if let None = self.pressed_mouse_buttons.get(button)
+                        if self.pressed_mouse_buttons.get(button).is_none()
                         {
-                            self.pressed_mouse_buttons.insert(*button, State { pressed_this_frame: true, released: false });
+                            self.pressed_mouse_buttons.insert(*button, InputState { pressed_this_frame: true, released: false });
                         }
                     }
                     ElementState::Released =>
                     {
-                        if let Some(State { released, .. }) = self.pressed_mouse_buttons.get_mut(button)
+                        if let Some(InputState { released, .. }) = self.pressed_mouse_buttons.get_mut(button)
                         {
                             *released = true;
                         }
@@ -155,16 +192,16 @@ impl Input
     }
 
     /// returns true the first frame the button is pressed,
-    pub fn get_key_down(keycode : KeyCode) -> bool
+    pub fn get_key_down(&mut self, keycode : KeyCode) -> bool
     {
-        let state = input_mut().current_pressed_keys.get_mut(&keycode);
+        let state = self.current_pressed_keys.get_mut(&PhysicalKey::Code(keycode));
 
         match state
         {
-            Some(State { pressed_this_frame : true, .. }) =>
+            Some(InputState { pressed_this_frame : true, .. }) =>
             {
                 // theres a bunch of frame delay before the program checks the input again,
-                // lets change this ourselves to false since it will definitely be after the first fn invocation
+                // lets change this ourselves to false since it will definitely be after the first invocation
                 state.unwrap().pressed_this_frame = false;
                 true
             }
@@ -174,15 +211,15 @@ impl Input
     }
 
     /// returns true if the key is being pressed
-    pub fn get_key_holding(keycode : KeyCode) -> bool
+    pub fn get_key_holding(&self, keycode : KeyCode) -> bool
     {
-        input().current_pressed_keys.get(&keycode).is_some()
+        self.current_pressed_keys.get(&PhysicalKey::Code(keycode)).is_some()
     }
 
     /// returns true the frame the key is released
-    pub fn get_key_up(keycode : KeyCode) -> bool
+    pub fn get_key_up(&self, keycode : KeyCode) -> bool
     {
-        match input().current_pressed_keys.get(&keycode)
+        match self.current_pressed_keys.get(&PhysicalKey::Code(keycode))
         {
             Some(state) => state.released,
             None => false
@@ -191,13 +228,13 @@ impl Input
 
     // returns true the first frame the mouse button is pressed
 
-    pub fn get_mouse_button_down(click : MouseButton) -> bool
+    pub fn get_mouse_button_down(&mut self, click : MouseButton) -> bool
     {
-        let state = input_mut().pressed_mouse_buttons.get_mut(&click);
+        let state = self.pressed_mouse_buttons.get_mut(&click);
 
         match state
         {
-            Some(State { pressed_this_frame : true, .. }) =>
+            Some(InputState { pressed_this_frame : true, .. }) =>
             {
                 // theres a bunch of frame delay before the program checks the input again,
                 // lets change this ourselves to false since it will definitely be after the first fn invocation
@@ -209,14 +246,14 @@ impl Input
         }
     }
 
-    pub fn get_mouse_button_holding(click : MouseButton) -> bool
+    pub fn get_mouse_button_holding(&mut self, click : MouseButton) -> bool
     {
-        input().pressed_mouse_buttons.get(&click).is_some()
+        self.pressed_mouse_buttons.get(&click).is_some()
     }
 
-    pub fn get_mouse_button_up(click : MouseButton) -> bool
+    pub fn get_mouse_button_up(&mut self, click : MouseButton) -> bool
     {
-        match input().pressed_mouse_buttons.get(&click)
+        match self.pressed_mouse_buttons.get(&click)
         {
             Some(input) => input.released,
             None => false
@@ -226,7 +263,15 @@ impl Input
 
 pub struct Callback<T:'static + Copy>
 {
-    listeners : Vec<&'static mut dyn CallbackListener<T>>
+    listeners: Vec<&'static mut dyn CallbackListener<T>>
+}
+
+impl<T: 'static + Copy> Default for Callback<T> 
+{
+    fn default() -> Self 
+    {
+        Self { listeners : vec![] }
+    }
 }
 
 impl<T: Copy> core::ops::AddAssign<&mut dyn CallbackListener<T>> for &mut Callback<T>
@@ -239,9 +284,7 @@ impl<T: Copy> core::ops::AddAssign<&mut dyn CallbackListener<T>> for &mut Callba
 
 impl<T: Copy> Callback<T>
 {
-    pub fn new() -> Self { Self { listeners : vec![] } }
-
-    pub fn add_listener(&mut self, callback : &mut dyn CallbackListener<T>)
+    pub fn add_listener(&mut self, callback: &mut dyn CallbackListener<T>)
     {
         self.listeners.push(unsafe { core::mem::transmute(callback) });
     }

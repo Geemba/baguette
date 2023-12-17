@@ -1,0 +1,10 @@
+[package]
+name = "baguette-app"
+version = "0.1.0"
+edition = "2021"
+license.workspace = true
+
+[dependencies]
+ahash = "*"
+input = { workspace = true }
+rendering = { workspace = true }

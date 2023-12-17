@@ -88,6 +88,7 @@ impl ResolutionPass
         }
     }
 
+    #[must_use]
     pub fn init(config : &SurfaceConfiguration) -> Self
     {
         let vertex_buffer = create_buffer_init(BufferInitDescriptor
@@ -97,8 +98,7 @@ impl ResolutionPass
             usage: BufferUsages::VERTEX,
         });
 
-        let indices : std::vec::Vec::<u16> =
-        vec!
+        let indices: [u16; 6] = 
         [
             0, 1 ,2 , 2, 3 ,0
         ];
@@ -109,11 +109,6 @@ impl ResolutionPass
             contents: bytemuck::cast_slice(&indices),
             usage: BufferUsages::INDEX,
         });
-
-        let binding = std::env::current_dir().unwrap();
-        let shaderpath = binding.display();
-
-        println!("{shaderpath}");
 
         let shader = create_shader_module(ShaderModuleDescriptor
         {
@@ -234,21 +229,14 @@ impl ResolutionPass
 
                 primitive: PrimitiveState::default(),
                 multisample: MultisampleState::default(),
-                multiview: Default::default(),
+                multiview: Option::default(),
                 depth_stencil: None,
             }
         );
 
         let low_res =  Self::create_low_res(&bindgroup_layout, config);
            
-        Self
-        {
-            render_pipeline,
-            vertex_buffer,
-            low_res,
-            index_buffer,
-            empty_pipeline,
-        }
+        Self { render_pipeline, vertex_buffer, index_buffer, empty_pipeline, low_res }
     }
 }
 
@@ -270,7 +258,7 @@ impl super::RenderPass for ResolutionPass
                     ops: Operations
                     {
                         load: LoadOp::Clear(Color::BLACK),
-                        store: true,
+                        store: false,
                     },
                 })],
                 depth_stencil_attachment: None,
@@ -286,7 +274,7 @@ impl super::RenderPass for ResolutionPass
             label: Some("low res"),
             color_attachments: &[Some(RenderPassColorAttachment
             {
-                view : &view,
+                view,
                 resolve_target: None,
                 ops: Operations
                 {
@@ -297,7 +285,7 @@ impl super::RenderPass for ResolutionPass
                         b: 0.1,
                         a: 1.0,
                     }),
-                    store: true,
+                    store: false,
                 },
             })],
             depth_stencil_attachment: None,
@@ -310,5 +298,10 @@ impl super::RenderPass for ResolutionPass
         render_pass.draw_indexed(0..6, 0, 0..1);      
 
         Ok(())
+    }
+
+    fn add_pass() -> Passes where Self : Sized
+    {
+        todo!()
     }
 }

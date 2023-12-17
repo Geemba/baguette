@@ -103,7 +103,7 @@ impl Blur
 
     fn create_layout() -> BindGroupLayout
     {
-        return device().create_bind_group_layout(&BindGroupLayoutDescriptor
+        device().create_bind_group_layout(&BindGroupLayoutDescriptor
         {
             label: Some("noise bindgroup layout"),
             entries: &[wgpu::BindGroupLayoutEntry
@@ -177,7 +177,7 @@ impl PostProcessPass for Blur
 
     fn update_bindings(&mut self, view : &TextureView, sampler : &Sampler)
     {
-        let bind_group_layout = Blur::create_layout();
+        let bind_group_layout = Self::create_layout();
 
         self.bind_group = device().create_bind_group(&BindGroupDescriptor 
         {
@@ -188,12 +188,12 @@ impl PostProcessPass for Blur
                 wgpu::BindGroupEntry
                 {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&view),
+                    resource: wgpu::BindingResource::TextureView(view),
                 },
                 wgpu::BindGroupEntry
                 {
                     binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&sampler),
+                    resource: wgpu::BindingResource::Sampler(sampler),
                 },
                 wgpu::BindGroupEntry
                 {

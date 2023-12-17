@@ -1,36 +1,47 @@
 use crate::*;
 
-pub struct TransformDescriptor
-{
-    /// world position of the transform, default is 0,0,0
-    pub position : math::Vec3,
-    /// world rotation of the transform, default is 0,0,0
-    pub rotation : math::Vec3,
-    /// world scale of the transform, default is 1,1,1
-    pub scale : math::Vec3,
-}
+/// this is the layout expected from the gpu for a [Transform]
+pub(crate) type TransformRaw = [[f32; 4]; 4];
 
-impl Default for TransformDescriptor
-{
-    fn default() -> Self 
-    {
-        Self
-        {
-            scale: math::Vec3::ONE,
-            position: math::Vec3::ZERO,
-            rotation: math::Vec3::ZERO,        
-        }
-    }
-}
-
-/// used to return transform as plain old data
-pub type TransformRaw = [[f32;4];4];
-
+#[derive(Debug,PartialEq, Clone)]
 pub struct Transform
 {
     pub translation: math::Vec3,
     pub orientation: math::Quat,
     pub scale: math::Vec3,
+}
+
+impl Transform
+{
+    pub const fn from_pos_rot_scale(translation: math::Vec3, orientation: math::Quat, scale: math::Vec3) -> Self 
+    {
+        Self { translation, orientation, scale }
+    }
+
+    pub fn set_scale(&mut self, scale: math::Vec3)
+    {
+        self.scale = scale
+    }
+
+    pub(crate) fn as_raw(&self) -> TransformRaw
+    {
+        math::Mat4::
+            from_scale_rotation_translation(self.scale, self.orientation, self.translation)
+            .to_cols_array_2d()
+    }
+}
+
+#[allow(clippy::nonstandard_macro_braces)]
+impl std::fmt::Display for Transform
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result 
+    {
+        write!
+        (
+            f, "translation : {}, orientation : {}, scale {}",
+            self.translation, self.orientation, self.scale
+        )
+    }
 }
 
 impl Default for Transform
@@ -50,86 +61,46 @@ impl Default for Transform
     }
 }
 
-impl Transform
+/// describes the buffer layout of a [Transform]
+pub const fn desc<'a>() -> wgpu::VertexBufferLayout<'a>
 {
-    pub fn new(desc : TransformDescriptor) -> Self 
-    {
-        let position = desc.position;
-        let rotation = math::Quat::from_euler(math::EulerRot::XYZ, desc.rotation.x, desc.rotation.y, desc.rotation.z);
-        let scale = math::Vec3::ONE;
-
-        println!("{}", rotation);
-
-        Self
-        {
-            translation: position,
-            orientation: rotation,
-            scale
-        }
-    }
-
-    pub fn from_pos_rot_scale(position: math::Vec3, rotation: math::Quat, scale: math::Vec3) -> Self 
-    {
-        Self { translation: position, orientation: rotation, scale}  
-    }
-
-    pub fn set_scale(&mut self, scale: math::Vec3)
-    {
-        self.scale = scale;
-    }
-
-    pub fn to_raw(&self) -> TransformRaw
-    {
-        (math::Mat4::from_scale_rotation_translation(self.scale, self.orientation, self.translation)).to_cols_array_2d()
-    }
-
-}
-
-pub fn to_raw(scale : math::Vec3, rotation : math::Quat ,position : math::Vec3,) -> TransformRaw
-{
-    (math::Mat4::from_scale_rotation_translation(scale, rotation, position)).to_cols_array_2d()  
-}
-
-pub fn desc<'a>() -> wgpu::VertexBufferLayout<'a> 
-{
-    wgpu::VertexBufferLayout 
+    wgpu::VertexBufferLayout
     {
         array_stride: core::mem::size_of::<[[f32; 4]; 4]>() as wgpu::BufferAddress,
-        // We need to switch from using a step mode of Vertex to Instance
-        // This means that our shaders will only change to use the next
-        // instance when the shader starts processing a new instance
         step_mode: wgpu::VertexStepMode::Instance,
         attributes: 
         &[
-            wgpu::VertexAttribute 
+            wgpu::VertexAttribute
             {
                 offset: 0,
-                // While our vertex shader only uses locations 0, and 1 now, in later tutorials we'll
-                // be using 2, 3, and 4, for Vertex. We'll start at slot 5 not conflict with them later
-                shader_location: 5,
-                format: wgpu::VertexFormat::Float32x4,
+                shader_location: 3,
+                format: wgpu::VertexFormat::Float32x4
             },
-            // A mat4 takes up 4 vertex slots as it is technically 4 vec4s. We need to define a slot
-            // for each vec4. We'll have to reassemble the mat4 in
-            // the shader.
             wgpu::VertexAttribute 
             {
                 offset: core::mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
-                shader_location: 6,
-                format: wgpu::VertexFormat::Float32x4,
+                shader_location: 4,
+                format: wgpu::VertexFormat::Float32x4
             },
             wgpu::VertexAttribute 
             {
                 offset: core::mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
-                shader_location: 7,
-                format: wgpu::VertexFormat::Float32x4,
+                shader_location: 5,
+                format: wgpu::VertexFormat::Float32x4
             },
             wgpu::VertexAttribute 
             {
                 offset: core::mem::size_of::<[f32; 12]>() as wgpu::BufferAddress,
-                shader_location: 8,
-                format: wgpu::VertexFormat::Float32x4,
-            },
-        ],
+                shader_location: 6,
+                format: wgpu::VertexFormat::Float32x4
+            }
+        ]
     }
 }
+
+// a trait to retrieve an orientation towards an object
+//pub trait LookAt
+//{
+//    /// returns the orientation needed to face this object
+//    fn look_at(&self, from: Vec3) -> math::Quat;
+//}

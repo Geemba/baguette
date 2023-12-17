@@ -1,8 +1,16 @@
 pub use input::winit::window::Window;
-pub use input::*;
-pub use baguette_math::*;
+
+pub(crate) use input::*;
+pub(crate) use baguette_math::*;
+pub(crate) use renderer::static_render_data::*;
+
 /// image crate reexport
 pub use image;
+
+#[path ="rendering/2d/sprite.rs"]
+pub mod sprite;
+pub use sprite::Sprite;
+pub use sprite::SpriteLayout;
 
 #[path ="rendering/renderer.rs"]
 pub mod renderer;
@@ -12,7 +20,7 @@ pub mod camera;
 mod renderpasses;
 pub use renderpasses::*;
 
-pub use spritepass::*;
+//pub use spritepass::*;
 pub use resolutionpass::*;
 
 #[path ="rendering/postprocess/postprocess.rs"]
@@ -45,7 +53,7 @@ pub use util::*;
 pub use renderer::*;
 pub use camera::*;
 
-pub(crate) use renderer::static_render_data::*;
 //pub(crate) use baguette_proc::*;
 //pub(crate) use gameloop::Update;
 pub use wgpu::SurfaceError;
+pub use wgpu::FilterMode;

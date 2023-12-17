@@ -1,21 +1,21 @@
-pub use crate::*;
+use crate::*;
 
-static mut CAMERAS : std::vec::Vec<Camera> = vec![];
+static mut CAMERAS: std::vec::Vec<Camera> = vec![];
 
 pub struct Camera
 {
-    pub projection : CameraProjection,
-    pub binding : GpuBinding
+    pub projection: CameraProjection,
+    pub binding: GpuBinding
 }
 
 pub struct GpuBinding
 {
-    pub buffer : wgpu::Buffer,
+    pub buffer: wgpu::Buffer,
     pub bind_group: wgpu::BindGroup,
     pub layout: wgpu::BindGroupLayout
 }
 
-pub fn get_binding_data() -> GpuBinding
+#[must_use] fn get_binding_data() -> GpuBinding
 {
     let buffer = create_buffer(wgpu::BufferDescriptor
     {
@@ -65,54 +65,66 @@ impl Default for Camera
     {
         Self
         {
-            projection: Default::default(),       
-            binding: get_binding_data(),
+            projection: CameraProjection::default(),       
+            binding: get_binding_data()
         }
     }
 }
 
+/// returns the main camera as mutable if there is one, or returns a new instance and sets it as main
+#[inline]
+#[must_use] pub fn main_mut() -> &'static mut Camera
+{
+    Camera::main_mut()
+}
+
 /// returns the main camera if there is one, or returns a new instance and sets it as main
 #[inline]
-pub fn main() -> &'static mut Camera
+#[must_use] pub fn main() -> &'static Camera
 {
     Camera::main()
 }
 
 //static
 impl Camera
-{
-    /// returns the main camera if there is one, otherwise returns a new instance and sets it as main
-    pub fn main() -> &'static mut Camera
-    {
-        unsafe
-        {
-            match CAMERAS.get_mut(0)
-            {
-                Some(cam) => cam,
-                None => 
-                {
-                    CAMERAS.push(Default::default());
-                    &mut CAMERAS[0]
-                }
-            }
-        }
-    }
- 
-    /// returns all existing cameras in the scene
-    pub fn all() -> &'static Vec<Camera>
+{   
+     /// returns all existing cameras in the scene
+    pub fn all() -> &'static Vec<Self>
     {
         unsafe { &CAMERAS }
     }
 
     /// returns all existing cameras in the scene
-    fn all_mut() -> &'static mut Vec<Camera>
+    fn all_mut() -> &'static mut Vec<Self>
     {
         unsafe { &mut CAMERAS }
     }
- 
-    pub(crate) fn resize_all(aspect : f32)
+    
+    /// returns the main camera if there is one, otherwise returns a new instance and sets it as main
+    pub fn main() -> &'static Self
     {
-        Camera::all_mut().iter_mut().for_each(|cam| 
+        Self::main_mut()
+    }
+    /// returns the main camera if there is one, otherwise returns a new instance and sets it as main
+    pub fn main_mut() -> &'static mut Self
+    {
+        unsafe
+        {
+            match CAMERAS.get_mut(0) 
+            {
+                Some(cam) => cam,
+                None => 
+                {
+                    CAMERAS.push(Camera::default());
+                    &mut CAMERAS[0]
+                }
+            }   
+        }
+    }
+
+    pub(crate) fn resize_all(aspect: f32)
+    {
+        Self::all_mut().iter_mut().for_each(|cam| 
         {
             cam.projection.aspect = aspect;
             cam.projection.rebuild_projection(aspect)
@@ -121,11 +133,10 @@ impl Camera
 
     pub(crate) fn update_all()
     {
-        Camera::all_mut().iter_mut().for_each(|cam| cam.update());
+        Self::all_mut().iter_mut().for_each(|cam| cam.update())
     }
 }
 
-//self
 impl Camera
 {
     pub(crate) fn update(&mut self)
@@ -134,12 +145,12 @@ impl Camera
         let uniform = self.projection.screen_space_matrix().to_cols_array_2d();
     
         // and we queue a buffer write to update the actual matrix on the gpu
-        queue().write_buffer(&self.binding.buffer, 0, bytemuck::cast_slice(&[uniform]));
+        crate::write_buffer(&self.binding.buffer, &uniform);
     }
 
     #[inline]
     /// returns's the field of view (in radiants)
-    pub fn fov(&self) -> f32 { self.projection.fovy }
+    pub const fn fov(&self) -> f32 { self.projection.fovy }
 
     #[inline]
     /// set's the field of view (in radiants)
@@ -150,7 +161,7 @@ impl Camera
     /// self.set_fov(self.fov() - 0.1f32.to_radians())
     /// 
     /// ```
-    pub fn set_fov(&mut self, mut fov : f32)
+    pub fn set_fov(&mut self, mut fov: f32)
     {
         fov = fov.max(1f32.to_radians());
 
@@ -175,20 +186,20 @@ impl Camera
     }
 
     #[inline]
-    /// set's the world position
-    pub fn set_position(&mut self, position : math::Vec3)
+    /// set's this camera's world position
+    pub fn set_position(&mut self, position: math::Vec3)
     {
         self.projection.translation = self.to_view_space(position);
     }
 
     #[inline]
-    pub fn orientation(&self) -> math::Quat
+    pub const fn orientation(&self) -> math::Quat
     {
         self.projection.orientation
     }
 
     #[inline]
-    pub fn rotate(&mut self, rotation : math::Quat)
+    pub fn rotate(&mut self, rotation: math::Quat)
     {
         let angles = rotation.to_euler(math::EulerRot::XYZ);
 
@@ -201,64 +212,70 @@ impl Camera
 
     /// aligns a camera space vector to global space
     #[inline]
-    pub fn to_world_space(&self, pos : math::Vec3) -> math::Vec3
+    pub fn to_world_space(&self, pos: math::Vec3) -> math::Vec3
     {
         self.projection.orientation * pos
     }
     
     /// aligns a global space vector to camera space, this is not screen space
     #[inline]
-    pub fn to_view_space(&self, pos : math::Vec3) -> math::Vec3
+    pub fn to_view_space(&self, pos: math::Vec3) -> math::Vec3
     {
         self.projection.orientation.conjugate() * pos
     }
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq)]
 pub enum ProjectionMode
 {
     Perspective,
     Orthographic
 }
 
+/// the projection of the camera
 pub struct CameraProjection
 {
-    translation : math::Vec3,
-    orientation : math::Quat,
+    translation: math::Vec3,
+    orientation: math::Quat,
 
-    yaw : f32,
-    pitch : f32,
-    roll : f32,
+    yaw: f32,
+    pitch: f32,
+    roll: f32,
     
-    mode : ProjectionMode,
-    projection : math::Mat4,
+    mode: ProjectionMode,
+    projection: math::Mat4,
 
-    aspect : f32,
+    aspect: f32,
     fovy: f32,
     near_clip: f32,
-    far_clip: f32,
+    far_clip: f32
 }
 
 impl Default for CameraProjection
 {
     fn default() -> Self 
     {
+        let aspect = config().width as f32 / config().height as f32;
+        let fovy = 45f32.to_radians();
+        let near_clip = 0.01;
+        let far_clip = 500.;
+
         Self
         {
             translation: math::Vec3::Z * 2.,
-            orientation : math::Quat::IDENTITY,
+            orientation: math::Quat::IDENTITY,
 
             yaw: 0f32,
             pitch: 0f32,
             roll: 0f32,
 
             mode: ProjectionMode::Perspective,
-            projection : math::Mat4::IDENTITY,
-            
-            aspect: f32::NAN,
-            fovy: 45f32.to_radians(),
-            near_clip: 0.01,
-            far_clip: 500.
+            projection: math::Mat4::perspective_rh_gl(fovy, aspect, near_clip, far_clip),
+
+            aspect,
+            fovy,
+            near_clip,
+            far_clip
         }
     }
 }
@@ -266,9 +283,9 @@ impl Default for CameraProjection
 impl CameraProjection
 {
     #[inline]
-    /// projection needs to be rebuild when any of these values change : fovy, aspect, near_clip, far_clip
+    /// projection needs to be rebuild when any of these values change : `fovy`, `aspect`, `near_clip`, `far_clip`
     /// or projection mode is changed
-    fn rebuild_projection(&mut self, aspect : f32)
+    fn rebuild_projection(&mut self, aspect: f32)
     {
         self.projection = match self.mode
         {
@@ -286,7 +303,7 @@ impl CameraProjection
     #[inline]
     /// converts the projection matrix to a buffer readable format
     fn screen_space_matrix(&self) -> math::Mat4
-    {     
+    {
         self.projection * self.view_matrix()
     }
 
@@ -297,6 +314,7 @@ impl CameraProjection
     }
     
     #[inline]
+    #[must_use]
     pub fn recalculate_orientation(&self) -> math::Quat
     {
         math::Quat::from_euler(math::EulerRot::XYZ, self.yaw, self.pitch, self.roll)

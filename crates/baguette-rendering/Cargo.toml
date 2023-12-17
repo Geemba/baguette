@@ -6,13 +6,12 @@ license.workspace = true
 
 [dependencies]
 wgpu = "*"
-wgpu-types = "*"
 spin_sleep = "*"
 pollster = "*"
-bytemuck ={ version = "*", features = [ "derive" ]}
-image ={ version = "*", features = ["png", "jpeg"]}
-baguette-proc ={ path = "../baguette-proc"}
-baguette-math ={ path = "../baguette-math"}
-gameloop ={ package = "baguette-gameloop", path = "../baguette-gameloop"}
-input ={ package = "baguette-input", path = "../baguette-input"}
+bytemuck = { version = "*", features = [ "derive" ]}
+image = { version = "*", features = ["png", "jpeg"]}
+baguette-math = { workspace = true }
+input = { workspace = true }
 once_cell = "*"
+raw-window-handle = "0.5.2"
+disjoint_impls = "*"

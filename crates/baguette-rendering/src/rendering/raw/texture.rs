@@ -6,6 +6,7 @@ pub struct Texture
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
     pub sampler: wgpu::Sampler,
+    pub pxunit: f32,
 }
 
 impl Texture 
@@ -19,15 +20,11 @@ impl Texture
     ) -> Option<Self>
     {
 
-        match image::load_from_memory(bytes) 
-        {
-            Ok(img) => Self::from_image(device, queue, &img, Some(label)),
-            Err(_) =>
-            {
-                //log::warn!("Could not load texture");
-                None
-            },
-        }       
+        image::load_from_memory(bytes)
+        .map_or_else
+        (
+            |_| None, |img| Self::from_image(device, queue, &img, Some(label))
+        )       
     }
 
     pub fn from_image
@@ -78,7 +75,7 @@ impl Texture
                 bytes_per_row: Some(4 * dimensions.0),
                 rows_per_image: Some(dimensions.1),
             },
-            size,
+            size
         );
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -96,13 +93,13 @@ impl Texture
             }
         );
 
-        Some(Self { texture, view, sampler})
+        Some(Self { texture, view, sampler, pxunit: 0. })
     }
 
     pub fn size(&self) -> baguette_math::Vec2
     {
         let size = self.texture.size();
-        baguette_math::math::vec2(size.width as f32, size.height as f32) 
+        baguette_math::Vec2::new(size.width as f32, size.height as f32) 
     }
 
 }

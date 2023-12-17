@@ -1,10 +1,11 @@
-use self::static_render_data::*;
-use super::*;
+use crate::*;
 
 pub struct Renderer
 {
+    pub window: Window,
+
     adapter: wgpu::Adapter,
-    passes : super::RenderPasses,
+    passes: Option<RenderPasses>
 }
 
 impl crate::CallbackListener<winit::dpi::PhysicalSize<u32>> for Renderer
@@ -19,16 +20,50 @@ impl Renderer
 {
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>)
     {
-        if new_size.width <= 0 || new_size.height <= 0 { return }
-
-        config().width = new_size.width;
-        config().height = new_size.height;
+        config().width = u32::max(new_size.width, 1);
+        config().height = u32::max(new_size.height, 1);
 
         Camera::resize_all(new_size.width as f32 / new_size.height as f32);
 
-        self.update_surface();
+        self.update_surface_inner()
     }
 
+    pub fn get_or_insert_pass<T: RenderPass + 'static>(&mut self) -> &mut T
+    {
+        let passes = self.passes.get_or_insert_with(RenderPasses::new);
+
+        let pass = match (0..passes.renderpasses.len()).find
+        (
+            |&i| match passes.renderpasses[i]
+            {
+                Passes::SpriteSheet(ref mut p) => p as &mut dyn std::any::Any
+            }.is::<T>()
+        )
+        {
+            Some(i) => &mut passes.renderpasses[i],
+            None =>
+            {
+                passes.renderpasses.push(<T>::add_pass());
+                passes.renderpasses.last_mut().unwrap()
+            }
+        };
+        (
+            match pass
+            {
+                Passes::SpriteSheet(p) => p
+            }
+            as &mut dyn std::any::Any
+        )
+        // all type checking has been done before we reach this point so its safe to assume this is Some
+        .downcast_mut().unwrap()
+        
+    }
+
+    /// returns the render of this [`Renderer`].
+    ///
+    /// # Errors
+    ///
+    /// this function will return an error if the surface is not able to be retrieved.
     pub fn render(&self) -> Result<(), wgpu::SurfaceError>
     {
         Camera::update_all();
@@ -38,21 +73,38 @@ impl Renderer
 
         let mut encoder = create_command_encoder("render encoder");
 
-        for pass in self.passes.iter()
+        match &self.passes
         {
-            if let Err(err) = pass.draw(&mut encoder, &frame_output)
+            Some(passes) => for pass in passes.iter()
             {
-                return Err(err)
+                pass.draw(&mut encoder, frame_output)?
+            }   
+            
+            None => 
+            {
+                encoder.begin_render_pass(&wgpu::RenderPassDescriptor
+                {
+                    label: Some("empty renderer pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment
+                    {
+                        view: frame_output,
+                        resolve_target: None,
+                        ops: wgpu::Operations
+                        {
+                            load: wgpu::LoadOp::Clear(wgpu::Color
+                            {
+                                r: 0.1,
+                                g: 0.2,
+                                b: 0.5,
+                                a: 1.0
+                            }),
+                            store: true
+                        }
+                    })],
+                    depth_stencil_attachment: None,
+                });
             }
-        };
-
-        //for post in self.post_processes.iter()
-        //{
-        //    if let Err(err) = post.pass(&mut encoder, &frame_output, &self.post_processes.data)
-        //    {
-        //        return Err(err)
-        //    }
-        //}
+        }
 
         queue().submit([encoder.finish()]);
         output.present();
@@ -60,30 +112,66 @@ impl Renderer
         Ok(())
     }
 
-    /// adds tasks to execute when rendering
-    pub fn add_render_pass(&mut self, pass : impl renderpasses::RenderPass + 'static)
+    pub fn suspend(&mut self)
     {
-        self.passes.add_pass(pass)
+        Screen::destroy();
     }
 
-    //pub fn add_post_process_pass(&mut self, pass : impl PostProcessPass + 'static)
-    //{
-    //    self.post_processes.add_pass(pass)
-    //}
-
-    pub fn new(window : Window) -> Self
+    /// required to be called for any change to [wgpu::Device] to be effective.
+    /// 
+    /// will update the surface with new config values
+    ///
+    fn update_surface_inner(&mut self)
     {
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor
+        surface().configure(device(), config());
+    }
+
+    pub fn get_pass<T>(&mut self) -> Option<&mut T> where T: RenderPass + 'static
+    {
+        if let Some(ref mut passes) = self.passes 
         {
-            backends: wgpu::Backends::PRIMARY,
-            dx12_shader_compiler: wgpu::Dx12Compiler::Fxc,
-        });
+            return passes.iter_mut().find_map
+            (
+                |pass| match pass
+                {
+                    Passes::SpriteSheet(pass) => (pass as &mut dyn core::any::Any).downcast_mut::<T>()
+                }
+            )
+        }
+        None
+    }
+}
+
+/// 2d specific
+impl Renderer
+{
+    /// loads a sprite to be rendered
+    pub fn load_sprite<T>(&mut self, sprite: SpriteLoader<T>) -> Sprite
+        where
+            T: Into<std::ffi::OsString> + AsRef<std::path::Path>
+    {
+        self.get_or_insert_pass::<SpritePass>().add(sprite)
+    }
+}
+
+/// initialization
+impl Renderer
+{
+    /// Creates a new [`Renderer`].
+    ///
+    /// # Panics
+    ///
+    /// panics if an appropriate adapter or device is not avaiable.
+    #[must_use]
+    pub fn new(window: Window) -> Self
+    {
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
  
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions
         {
-            power_preference: wgpu_types::PowerPreference::HighPerformance,
+            power_preference: wgpu::PowerPreference::HighPerformance,
             force_fallback_adapter: false,
-            compatible_surface: None,
+            compatible_surface: None
         })).expect("bruh failed to find an appropriate adapter");
 
         let (device, queue) = pollster::block_on
@@ -100,23 +188,23 @@ impl Renderer
             )
         ).expect("bruh failed to create device");
 
-        StaticData::init(instance, device, queue, window);
+        static_render_data::StaticData::init(instance, device, queue);
 
-        let passes = RenderPasses::new();
-
-        let mut renderer = Self { adapter, passes };
+        let mut renderer = Self { adapter, passes: None, window };
 
         crate::on_screen_resize().add_listener(&mut renderer);
 
         renderer
     }
 
-    #[must_use]
+    /// Returns the resume of this [`Renderer`].
+    ///
+    /// # Panics
+    ///
+    /// panics if the window is not capable of being recreated.
     pub fn resume(&mut self)
-    {
-        println!("resume");
-
-        let surface = unsafe { instance().create_surface(window()) }
+    {    
+        let surface = unsafe { instance().create_surface(&self.window) }
             .expect("failed to create window");
         
         let surface_caps = surface.get_capabilities(&self.adapter);
@@ -132,66 +220,71 @@ impl Renderer
             format: *surface_format,
             width: 1,
             height: 1,
-            present_mode: wgpu_types::PresentMode::Fifo,
-            alpha_mode: wgpu_types::CompositeAlphaMode::Auto,
-            view_formats: vec![],
+            present_mode: wgpu::PresentMode::Fifo,
+            alpha_mode: wgpu::CompositeAlphaMode::Auto,
+            view_formats: vec![]
         };
 
         ////
 
         Screen::init(surface, config);
    
-        self.update_surface();  
-    }
-
-    pub fn suspend(&mut self)
-    {
-        Screen::destroy();
-    }
-
-    /// required to be called for any change to [Display] to be effective.
-    /// 
-    /// will update the surface with new config values
-    /// 
-    pub fn update_surface(&mut self)
-    {
-        surface().configure(&device(), config());
+        self.update_surface_inner()
     }
 }
 
-pub mod static_render_data
+#[cfg(debug_assertions)]
+impl Renderer
 {
-    use super::*;
+    pub fn config_size(&self) -> (u32,u32)
+    {
+        (config().width, config().height)
+    }
 
+    pub fn update_surface(&mut self)
+    {
+        self.update_surface_inner();      
+    }
+}
+
+pub(super) mod static_render_data
+{
     pub(super) struct StaticData
     {
         pub instance: wgpu::Instance,
-        pub device : wgpu::Device,
-        pub window : Window,
-        pub queue : wgpu::Queue,
-        pub screen : Screen,
+        pub device: wgpu::Device,
+        pub queue: wgpu::Queue,
+        pub screen: Screen
     }
 
     pub struct Screen { surface: Option<wgpu::Surface>, config: wgpu::SurfaceConfiguration }
 
     impl Screen
     {
+        /// initializes the screen
+        ///
+        /// # Panics
+        ///
+        /// panics if the static data is not initialized yet.
         pub fn init(surface : wgpu::Surface, config : wgpu::SurfaceConfiguration)
         {
-            let screen = unsafe { &mut STATIC_DATA.get_mut().unwrap_unchecked().screen };
+            let screen = unsafe { &mut STATIC_DATA.get_mut().unwrap().screen };
 
             screen.surface = Some(surface);
-            screen.config = config;          
+            screen.config = config  
         }
 
-        pub fn destroy() { unsafe { STATIC_DATA.get_mut().unwrap_unchecked().screen.surface.take(); } }
+        /// # Panics
+        ///
+        /// panics if the static data is not initialized.
+        pub fn destroy() { unsafe { STATIC_DATA.get_mut().unwrap().screen.surface.take(); } }
     }
 
     impl StaticData
     {
-        pub(super) fn init(instance: wgpu::Instance, device: wgpu::Device, queue: wgpu::Queue, window : Window) 
+        pub(super) fn init(instance: wgpu::Instance, device: wgpu::Device, queue: wgpu::Queue) 
         {
-            debug_assert!
+            assert!
             (
                 // returns error if init was already called
                 unsafe { &STATIC_DATA }.set
@@ -201,7 +294,6 @@ pub mod static_render_data
                         instance,
                         device,
                         queue,
-                        window,
                         screen: Screen 
                         {
                             surface: None,
@@ -229,54 +321,62 @@ pub mod static_render_data
     /// gets a reference to the instance of wgpu
     /// 
     /// will mostly be useful to create a surface
+    /// # Panics
+    ///
+    /// panics if the static data is not initialized yet.
     pub fn instance() -> &'static wgpu::Instance
     {
-        unsafe { &STATIC_DATA.get_unchecked().instance }
+        unsafe { &STATIC_DATA.get().unwrap().instance }
     }
     
     #[inline]
     /// gets a reference to the device instance
+    /// # Panics
+    ///
+    /// panics if the static data is not initialized yet.
     pub fn device() -> &'static wgpu::Device
     {
-        unsafe { &STATIC_DATA.get_unchecked().device }
-    }
-
-    #[inline]
-    /// gets a reference to the window
-    pub fn window() -> &'static Window
-    {
-        unsafe { &STATIC_DATA.get_unchecked().window }
+        unsafe { &STATIC_DATA.get().unwrap().device }
     }
 
     #[inline]
     /// gets a mutable reference to the surface configuration
+    /// # Panics
+    ///
+    /// panics if the static data is not initialized yet.
     pub fn config() -> &'static mut wgpu::SurfaceConfiguration
     {
         unsafe
         {
-            &mut STATIC_DATA.get_mut().unwrap_unchecked().screen
+            &mut STATIC_DATA.get_mut().unwrap().screen
                 .config
         }
     }
 
     #[inline]
     /// gets a reference to the surface if it exists
+    /// # Panics
+    ///
+    /// panics if the static data is not initialized yet.
     pub fn surface() -> &'static wgpu::Surface
     {
         unsafe 
-        { 
-            STATIC_DATA.get_unchecked().screen
-                .surface.as_ref().unwrap_unchecked()
+        {
+            STATIC_DATA.get().unwrap().screen
+                .surface.as_ref().unwrap()
         }
     }
 
     #[inline]
     /// gets a reference to the queue instance
     /// 
-    /// A Queue executes recorded CommandBuffer objects and provides convenience methods 
+    /// A Queue executes recorded `CommandBuffer` objects and provides convenience methods 
     /// for writing to buffers and textures
+    /// # Panics
+    ///
+    /// panics if the static data is not initialized yet.
     pub fn queue() -> &'static wgpu::Queue
     {
-        unsafe { &STATIC_DATA.get_unchecked().queue }
+        unsafe { &STATIC_DATA.get().unwrap().queue }
     }
 }

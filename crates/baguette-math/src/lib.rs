@@ -4,5 +4,5 @@
 pub use glam as math;
 pub use fastrand as rand;
 
-pub type Vec3 = glam::Vec3; pub type IVec3 = glam::IVec3;
-pub type Vec2 = glam::Vec2; pub type IVec2 = glam::IVec2;
+pub use glam::{Vec3, IVec3, UVec3};
+pub use glam::{Vec2, IVec2, UVec2};

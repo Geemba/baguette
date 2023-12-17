@@ -1,6 +1,6 @@
 use crate::*;
 
-static mut POST_PROCESS : Option<PostProcessPasses> = None;
+//static mut POST_PROCESS : Option<PostProcessPasses> = None;
 
 pub type PostProcess = PostProcessPasses;
 
@@ -30,17 +30,23 @@ impl std::ops::IndexMut<usize> for PostProcessPasses
 
 impl PostProcessPasses
 {
-    pub unsafe fn init()
-    { 
-        POST_PROCESS.get_or_insert
-        (
-            Self 
-        {
-            renderpasses : vec![], data : PostProcessData::new()
-        }); 
-    }
+    //
+    //pub fn init()
+    //{ 
+    //    POST_PROCESS.get_or_insert
+    //    (
+    //        Self 
+    //    {
+    //        renderpasses : vec![], data : PostProcessData::new()
+    //    }); 
+    //}
 
     pub fn len(&self) -> usize { self.renderpasses.len() }
+
+    pub fn is_empty(&self) -> bool
+    {
+        self.len() > 0
+    }
 
     pub fn add_pass<'a>(&mut self, pass : impl self::PostProcessPass + 'a + 'static)
     {
@@ -62,23 +68,23 @@ impl PostProcessPasses
     //    unsafe { POST_PROCESS }
     //}
 
-    /// returns the processing view if post process is active
-    pub fn processing_view() -> &'static wgpu::TextureView
-    {
-        unsafe { &POST_PROCESS.as_ref().unwrap().data.processing }
-    }
+    // returns the processing view if post process is active
+    //pub fn processing_view() -> &'static wgpu::TextureView
+    //{
+    //    unsafe { &POST_PROCESS.as_ref().unwrap().data.processing }
+    //}
 
-    /// returns the processed view if post process is active 
-    pub fn processed_view() -> &'static wgpu::TextureView
-    {
-        unsafe { &POST_PROCESS.as_ref().unwrap().data.processed }
-    }
+    ///// returns the processed view if post process is active 
+    //pub fn processed_view() -> &'static wgpu::TextureView
+    //{
+    //    unsafe { &POST_PROCESS.as_ref().unwrap().data.processed }
+    //}
 
-    /// returns the sampler if post process is active 
-    pub fn sampler() -> &'static wgpu::Sampler
-    {
-        unsafe { &POST_PROCESS.as_ref().unwrap().data.sampler }
-    }
+    ///// returns the sampler if post process is active 
+    //pub fn sampler() -> &'static wgpu::Sampler
+    //{
+    //    unsafe { &POST_PROCESS.as_ref().unwrap().data.sampler }
+    //}
 }
 
 pub trait PostProcessPass
@@ -109,6 +115,14 @@ pub struct PostProcessData
     pub index_buffer : wgpu::Buffer,
 }
 
+impl Default for PostProcessData
+{
+    fn default() -> Self 
+    {
+        Self::new()
+    }
+}
+
 impl PostProcessData
 {
     pub fn new() -> Self
@@ -129,9 +143,9 @@ impl PostProcessData
             usage: wgpu::BufferUsages::VERTEX,
         });
     
-        let indices : Vec::<u16> = vec!
+        let indices: [u16;6] =
         [
-            0, 1, 2, 2, 3 , 0
+            0, 1, 2, 2, 3, 0
         ];
     
         let index_buffer = create_buffer_init(wgpu::util::BufferInitDescriptor
@@ -155,11 +169,7 @@ impl PostProcessData
 
     pub fn recreate_view(size : Option<(u32, u32)>) -> wgpu::TextureView
     {
-        let size = match size 
-        {
-            Some(size) => size,
-            None => (config().width, config().height),
-        };
+        let size = size.map_or_else(|| (config().width, config().height), |size| size);
 
         create_texture
         (
