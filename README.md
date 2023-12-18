@@ -148,7 +148,7 @@ impl TestA
 ## If you are looking for rust game engines..
 
 - [Bevy](https://github.com/bevyengine/bevy) - The bevy engine
-- [Macroquad](https://github.com/not-fl3/macroquad) - A menubar/taskbar Gmail App for Windows and macOS
+- [Macroquad](https://github.com/not-fl3/macroquad) - is a simple and easy to use game library for Rust programming language, heavily inspired by raylib.
 
 ## License
 
