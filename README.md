@@ -88,11 +88,6 @@ impl State for TestA
     {
         self.move_cam();
 
-        if input::get_key_down(input::KeyCode::Backspace)
-        {
-            self.cam.set_projection_mode(ProjectionMode::Orthographic)
-        }
-
         match self.time > 6
         {
             true =>
