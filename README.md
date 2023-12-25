@@ -152,7 +152,7 @@ impl TestA
 
 ## License
 
-MIT
+MIT, Apache 2.0
 
 ---
 
