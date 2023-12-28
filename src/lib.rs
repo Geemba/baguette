@@ -161,7 +161,6 @@ impl AppBuilder<UninitDynFsm>
         };
 
         self.fsm.add_state::<St>(transitions);
-
         self
     }
 
@@ -171,6 +170,7 @@ impl AppBuilder<UninitDynFsm>
         self.fsm.add_state::<St>(Vec::new);
         self
     }
+    
     pub fn run(self)
     {
         let application = async
@@ -181,7 +181,7 @@ impl AppBuilder<UninitDynFsm>
             (
                 self.wbuilder
                     .build(&eventloop)
-                    .expect("unable to create window")
+                    .expect("window creation has failed")
             );
 
             //we need to reach event::resumed before building the fsm
@@ -192,10 +192,10 @@ impl AppBuilder<UninitDynFsm>
                 move |event: Event<()>, target|
     
                 match event
-                {                
+                {
                     Event::WindowEvent { event, .. } =>
                     {
-                        app.input.check(&event);
+                        app.check_input(&event);
 
                         match event 
                         {
@@ -235,7 +235,11 @@ impl AppBuilder<UninitDynFsm>
                         fsm.build(&mut app)
                     }
 
-                    Event::Suspended => app.renderer.suspend(),
+                    Event::Suspended =>
+                    {
+                        app.focused = false;
+                        app.renderer.suspend()
+                    },
                     Event::MemoryWarning => target.exit(),
                     _ => ()
                 }
@@ -246,7 +250,7 @@ impl AppBuilder<UninitDynFsm>
     }
 }
 
-impl<T : Dispatcher + 'static> AppBuilder<UninitStaticFsm<T>>
+impl<T: Dispatcher + 'static> AppBuilder<UninitStaticFsm<T>>
 {
     pub fn add_state<St: r#static::State<T> + 'static>(mut self, transitions: fn() -> Vec<Transition<St>>) -> Self
     {
