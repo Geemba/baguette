@@ -3,31 +3,8 @@ use app::*;
 fn main()
 {
     baguette_core::new()
-    
-        .add_state::<Empty>(transitions!
-        [
-            |_| input::get_key_down(input::KeyCode::Enter) => TestA
-        ])
-        .add_state::<TestA>(transitions!
-        [
-            |_| input::get_key_down(input::KeyCode::Enter) => Empty
-        ])
+        .add_loop::<TestA>()
         .run()
-}
-
-struct Empty;
-
-impl State for Empty
-{
-    fn new(_ : &'static mut Application) -> Self where Self: Sized
-    {
-        Self
-    }
-
-    fn update(&mut self, _ : &StateEvent)
-    {
-
-    }
 }
 
 struct TestA
@@ -35,7 +12,6 @@ struct TestA
     time: u8,
     cam: &'static mut Camera,
     sprite: Sprite,
-    sprite2: Sprite
 }
 
 impl State for TestA
@@ -50,29 +26,12 @@ impl State for TestA
             (
                 SpriteLoader::SpriteSheet
                 {
-                    path: r"D:\Fruit_Dungeon\baguette\assets\melastrana green sheet.png",
+                    path: r"D:\Rust\baguette\assets\melastrana green sheet.png",
                     filtermode: FilterMode::Nearest,
                     instances: vec!
                     [
                         (
-                            Transform { translation: math::Vec3::X * -1., ..Default::default() },
-                            SheetTiles::RangeIn(19..=21)
-                        )
-                    ],
-                    pxunit: 100.,
-                    layout: SpriteLayout { rows: 6, columns: 5 }
-                }
-            ),
-            sprite2: app.renderer.load_sprite
-            (
-                SpriteLoader::SpriteSheet
-                {
-                    path: r"D:\Fruit_Dungeon\baguette\assets\melastrana green sheet.png",
-                    filtermode: FilterMode::Nearest,
-                    instances: vec!
-                    [
-                        (
-                            Transform { translation: math::Vec3::X * 1., ..Default::default() },
+                            Default::default(),
                             SheetTiles::RangeIn(19..=21)
                         )
                     ],
@@ -87,20 +46,11 @@ impl State for TestA
     {
         self.move_cam();
 
-        if input::get_key_down(input::KeyCode::Backspace)
-        {
-            self.cam.set_projection_mode(ProjectionMode::Orthographic)
-        }
-
         match self.time > 6
         {
             true =>
             {
                 for instance in self.sprite.iter_instances_mut()
-                {
-                    instance.section.next_or_first();
-                }
-                for instance in self.sprite2.iter_instances_mut()
                 {
                     instance.section.next_or_first();
                 }
@@ -131,23 +81,6 @@ impl TestA
         if input::get_key_holding(input::KeyCode::KeyD)
         {
             self.cam.set_position(self.cam.position() + (math::Vec3::X * 0.1))
-        }
-
-        if input::get_key_holding(input::KeyCode::ArrowUp)
-        {
-            self.cam.rotate(math::math::Quat::from_axis_angle(math::Vec3::X, 1f32.to_radians()))
-        }
-        if input::get_key_holding(input::KeyCode::ArrowDown)
-        {
-            self.cam.rotate(math::math::Quat::from_axis_angle(math::Vec3::X, -1f32.to_radians()))
-        }
-        if input::get_key_holding(input::KeyCode::ArrowLeft)
-        {
-            self.cam.rotate(math::math::Quat::from_axis_angle(math::Vec3::Y, 1f32.to_radians()))
-        }
-        if input::get_key_holding(input::KeyCode::ArrowRight)
-        {
-            self.cam.rotate(math::math::Quat::from_axis_angle(math::Vec3::Y, -1f32.to_radians()))
         }
     }
 }

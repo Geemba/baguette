@@ -117,7 +117,7 @@ impl SpritePass
         Self
         {
             render_pipeline,
-            camera_bind_group: &cam.binding.bind_group,
+            camera_bind_group: &cam.binding.bindgroup,
             buffers: vec![],
             index_buffer: create_buffer_init
             (

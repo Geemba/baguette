@@ -8,23 +8,27 @@ keywords = ["gamedev", "graphics"]
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-spin_sleep = "*"
 pollster = "*"
 
-baguette-proc = { path = "crates/baguette-proc" }
-rendering ={ package = "baguette-rendering", path = "crates/baguette-rendering" }
-math ={ package = "baguette-math", path = "crates/baguette-math" }
-input ={ package = "baguette-input", path = "crates/baguette-input" }
-gameloop ={ package = "baguette-gameloop", path = "crates/baguette-gameloop" }
+app = { package = "baguette-app", path = "crates/baguette-app" }
+rendering = { package = "baguette-rendering", path = "crates/baguette-rendering" }
+math = { package = "baguette-math", path = "crates/baguette-math" }
+input = { package = "baguette-input", path = "crates/baguette-input" }
 audio = { package = "baguette-audio", path = "crates/baguette-audio" }
+ui = { package = "baguette-egui", path = "crates/baguette-egui" }
 
 [workspace]
 members = ["crates/*"]
 
 [workspace.dependencies]
+app = { package = "baguette-app", path = "crates/baguette-app" }
+input = { package = "baguette-input", path = "crates/baguette-input" }
+baguette-math = { package = "baguette-math", path = "crates/baguette-math" }
+rendering = { package = "baguette-rendering", path = "crates/baguette-rendering" }
+ui = { package = "baguette-egui", path = "crates/baguette-egui" }
 
 [profile.dev]
-opt-level = 1
+opt-level = 0
 
 [profile.dev.package."*"]
-opt-level = 3 
+opt-level = 1 

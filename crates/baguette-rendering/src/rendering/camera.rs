@@ -2,6 +2,7 @@ use crate::*;
 
 static mut CAMERAS: std::vec::Vec<Camera> = vec![];
 
+/// a scene camera
 pub struct Camera
 {
     pub projection: CameraProjection,
@@ -11,7 +12,7 @@ pub struct Camera
 pub struct GpuBinding
 {
     pub buffer: wgpu::Buffer,
-    pub bind_group: wgpu::BindGroup,
+    pub bindgroup: wgpu::BindGroup,
     pub layout: wgpu::BindGroupLayout
 }
 
@@ -56,7 +57,7 @@ pub struct GpuBinding
         label: Some("camera_bindgroup"),
     });
 
-    GpuBinding { buffer, bind_group, layout }
+    GpuBinding { buffer, bindgroup: bind_group, layout }
 }
 
 impl Default for Camera
@@ -88,7 +89,7 @@ impl Default for Camera
 //static
 impl Camera
 {   
-     /// returns all existing cameras in the scene
+    /// returns all existing cameras in the scene
     pub fn all() -> &'static Vec<Self>
     {
         unsafe { &CAMERAS }
@@ -124,16 +125,19 @@ impl Camera
 
     pub(crate) fn resize_all(aspect: f32)
     {
-        Self::all_mut().iter_mut().for_each(|cam| 
+        for cam in Self::all_mut().iter_mut()
         {
             cam.projection.aspect = aspect;
             cam.projection.rebuild_projection(aspect)
-        })
+        }
     }
 
     pub(crate) fn update_all()
     {
-        Self::all_mut().iter_mut().for_each(|cam| cam.update())
+        for cam in Self::all_mut().iter_mut()
+        {
+            cam.update()
+        }
     }
 }
 

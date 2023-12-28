@@ -28,15 +28,18 @@ impl Renderer
         self.update_surface_inner()
     }
 
-    pub fn get_or_insert_pass<T: RenderPass + 'static>(&mut self) -> &mut T
+    /// returns a mutable reference to the pass of type `T` of this [`Renderer`], either by creating it if it's empty
+    /// or by returning the existing one.
+    fn get_or_insert_pass<T: RenderPass + 'static>(&mut self) -> &mut T
     {
         let passes = self.passes.get_or_insert_with(RenderPasses::new);
 
+        // this is a bunch of boilerplate for type conversion 
         let pass = match (0..passes.renderpasses.len()).find
         (
-            |&i| match passes.renderpasses[i]
+            |&i| match &mut passes.renderpasses[i]
             {
-                Passes::SpriteSheet(ref mut p) => p as &mut dyn std::any::Any
+                Passes::SpriteSheet(p) => p as &mut dyn std::any::Any,
             }.is::<T>()
         )
         {
@@ -50,11 +53,10 @@ impl Renderer
         (
             match pass
             {
-                Passes::SpriteSheet(p) => p
-            }
-            as &mut dyn std::any::Any
+                Passes::SpriteSheet(p) => p as &mut dyn std::any::Any,
+            }         
         )
-        // all type checking has been done before we reach this point so its safe to assume this is Some
+        // all type checking has been done before reaching this point so its safe to assume this is Some
         .downcast_mut().unwrap()
         
     }
@@ -78,8 +80,7 @@ impl Renderer
             Some(passes) => for pass in passes.iter()
             {
                 pass.draw(&mut encoder, frame_output)?
-            }   
-            
+            }
             None => 
             {
                 encoder.begin_render_pass(&wgpu::RenderPassDescriptor
@@ -126,19 +127,9 @@ impl Renderer
         surface().configure(device(), config());
     }
 
-    pub fn get_pass<T>(&mut self) -> Option<&mut T> where T: RenderPass + 'static
+    pub fn max_texture_dimension(&self) -> u32
     {
-        if let Some(ref mut passes) = self.passes 
-        {
-            return passes.iter_mut().find_map
-            (
-                |pass| match pass
-                {
-                    Passes::SpriteSheet(pass) => (pass as &mut dyn core::any::Any).downcast_mut::<T>()
-                }
-            )
-        }
-        None
+        device().limits().max_texture_dimension_2d
     }
 }
 
@@ -230,20 +221,6 @@ impl Renderer
         Screen::init(surface, config);
    
         self.update_surface_inner()
-    }
-}
-
-#[cfg(debug_assertions)]
-impl Renderer
-{
-    pub fn config_size(&self) -> (u32,u32)
-    {
-        (config().width, config().height)
-    }
-
-    pub fn update_surface(&mut self)
-    {
-        self.update_surface_inner();      
     }
 }
 

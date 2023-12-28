@@ -1,15 +1,8 @@
 pub use crate::*;
 
-#[path = "2d/spritepass.rs"]
-pub mod spritepass;
-pub use spritepass::*;
-
-#[path = "renderpasses/resolutionpass.rs"]
-pub mod resolutionpass;
-
 pub enum Passes
 {
-    SpriteSheet(SpritePass)
+    SpriteSheet(SpritePass),
 }
 
 impl Passes
@@ -18,8 +11,8 @@ impl Passes
     {
         match self
         {
-            Self::SpriteSheet(pass) => RenderPass::draw(pass, encoder, view),
-        }
+            Self::SpriteSheet(pass) => pass as &dyn RenderPass,
+        }.draw(encoder, view)
     }
 }
 
@@ -38,15 +31,16 @@ impl RenderPasses
         self.renderpasses.iter()
     }
 
-    /// mutable iteration
-    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, Passes>
-    {
-        self.renderpasses.iter_mut()
-    }    
+    ///// mutable iteration
+    //pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, Passes>
+    //{
+    //    self.renderpasses.iter_mut()
+    //}    
 }
 
 pub trait RenderPass
 {
+    /// describes how to initialize this pass
     fn add_pass() -> Passes where Self: Sized;
     
     #[allow(clippy::cast_possible_truncation)]

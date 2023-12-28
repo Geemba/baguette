@@ -660,12 +660,18 @@ impl Drop for Sprite
 {
     fn drop(&mut self)
     {
+        // remove any reference to this sprite as it's about to be dropped.
+        // if this is None it means the renderpass has been dropped
+        // so we wouldn't need to do any extra work
         if let Some(id) = self.binding.id
         {
-            unsafe { self.spritebuffer.as_mut().retain
-            (
-                |sprite| sprite.as_ref().id.unwrap() != id
-            ) }  
+            unsafe 
+            {
+                self.spritebuffer.as_mut().retain
+                (
+                    |sprite| sprite.as_ref().id.unwrap() != id
+                )
+            }  
         }     
     }
 }
