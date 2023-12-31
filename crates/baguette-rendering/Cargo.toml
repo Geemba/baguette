@@ -15,3 +15,7 @@ input = { workspace = true }
 once_cell = "*"
 raw-window-handle = "0.5.2"
 disjoint_impls = "*"
+
+egui = { version = "*", default-features = false }
+epaint = { version = "*", default-features = false, features = ["bytemuck",] }
+type-map = "*"

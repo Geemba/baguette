@@ -1,21 +1,18 @@
+
 use crate::*;
 
 pub struct Renderer
 {
     pub window: Window,
+    pub ui: ui::Ui,
+
+    output: FrameOutput,
 
     adapter: wgpu::Adapter,
-    passes: Option<RenderPasses>
+    passes: Option<RenderPasses>,
 }
 
-impl crate::CallbackListener<winit::dpi::PhysicalSize<u32>> for Renderer
-{
-    fn callback_listener(&mut self, new_size : winit::dpi::PhysicalSize<u32>)
-    {
-        self.resize(new_size)
-    }
-}
-
+// integration specific
 impl Renderer
 {
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>)
@@ -23,9 +20,16 @@ impl Renderer
         config().width = u32::max(new_size.width, 1);
         config().height = u32::max(new_size.height, 1);
 
-        Camera::resize_all(new_size.width as f32 / new_size.height as f32);
+        let (physical_width, physical_height) = 
+        (
+            new_size.width as f32, new_size.height as f32
+        );
+        
+        self.ui.update_screen_size(new_size.width, new_size.height);
 
-        self.update_surface_inner()
+        Camera::resize_all(physical_width / physical_height);
+
+        self.update_surface()
     }
 
     /// returns a mutable reference to the pass of type `T` of this [`Renderer`], either by creating it if it's empty
@@ -75,35 +79,37 @@ impl Renderer
 
         let mut encoder = create_command_encoder("render encoder");
 
-        match &self.passes
         {
-            Some(passes) => for pass in passes.iter()
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor
             {
-                pass.draw(&mut encoder, frame_output)?
-            }
-            None => 
-            {
-                encoder.begin_render_pass(&wgpu::RenderPassDescriptor
+                label: Some("renderer pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment
                 {
-                    label: Some("empty renderer pass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment
+                    view: frame_output,
+                    resolve_target: None,
+                    ops: wgpu::Operations
                     {
-                        view: frame_output,
-                        resolve_target: None,
-                        ops: wgpu::Operations
+                        load: wgpu::LoadOp::Clear(wgpu::Color
                         {
-                            load: wgpu::LoadOp::Clear(wgpu::Color
-                            {
-                                r: 0.1,
-                                g: 0.2,
-                                b: 0.5,
-                                a: 1.0
-                            }),
-                            store: true
-                        }
-                    })],
-                    depth_stencil_attachment: None,
-                });
+                            r: 0.13,
+                            g: 0.31,
+                            b: 0.85,
+                            a: 1.0
+                        }),
+                        store: true
+                    }
+                })],
+                depth_stencil_attachment: None
+            });
+
+            if let Some(passes) = &self.passes 
+            {
+                for render_pass in passes.iter()
+                {
+                    render_pass.draw(&mut pass)?
+                }
+            
+                self.ui.render(&mut pass, &output.texture, frame_output);
             }
         }
 
@@ -122,14 +128,16 @@ impl Renderer
     /// 
     /// will update the surface with new config values
     ///
-    fn update_surface_inner(&mut self)
+    fn update_surface(&mut self)
     {
         surface().configure(device(), config());
     }
 
-    pub fn max_texture_dimension(&self) -> u32
+    /// list all limits that were requested of this device.
+    /// if any of these limits are exceeded, functions may panic.
+    pub fn limits(&self) -> wgpu::Limits
     {
-        device().limits().max_texture_dimension_2d
+        device().limits()
     }
 }
 
@@ -179,13 +187,20 @@ impl Renderer
             )
         ).expect("bruh failed to create device");
 
+            // width and height of the rendered area in pixels
+            let (width,height) = window.inner_size().into();
+
+            // scalefactor of the screen we are rendering inside
+            let scale = window.scale_factor() as f32;
+
+        let output = FrameOutput::new(&device,width,height);
+        
         static_render_data::StaticData::init(instance, device, queue);
 
-        let mut renderer = Self { adapter, passes: None, window };
+        // until we dont remove the static data the order we itialize matters
+        let ui = Ui::new(width,height,scale);
 
-        crate::on_screen_resize().add_listener(&mut renderer);
-
-        renderer
+        Self { adapter, passes: None, window, ui, output }
     }
 
     /// Returns the resume of this [`Renderer`].
@@ -220,7 +235,158 @@ impl Renderer
 
         Screen::init(surface, config);
    
-        self.update_surface_inner()
+        self.update_surface()
+    }
+}
+
+/// handles how to present the final texture
+struct FrameOutput
+{
+    view: wgpu::TextureView,
+    bindgroup: wgpu::BindGroup,
+    vertex_buffer: wgpu::Buffer,
+    pipeline: wgpu::RenderPipeline,
+}
+impl FrameOutput
+{
+    fn new(device: &wgpu::Device, width: u32,height: u32) -> Self 
+    {
+        let module = &device.create_shader_module
+        (
+            wgpu::ShaderModuleDescriptor
+            {
+                label: None,
+                source: wgpu::ShaderSource::Wgsl
+                (
+                    include_str!("shaders/tex_to_tex_copy.wgsl").into()
+                )
+            }
+        );
+
+        let view = device.create_texture
+        (
+            &wgpu::TextureDescriptor
+            {
+                label: Some("output texture"),
+                size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            }
+        ).create_view(&Default::default());
+
+        Self
+        {
+            bindgroup: device.create_bind_group
+            (
+                &wgpu::BindGroupDescriptor
+                {
+                    label: Some("frame output bindgroup"),
+                    layout: &device.create_bind_group_layout
+                    (
+                        &wgpu::BindGroupLayoutDescriptor
+                        {
+                            label: None,
+                            entries: &[wgpu::BindGroupLayoutEntry
+                            {
+                                binding: 0,
+                                visibility: wgpu::ShaderStages::FRAGMENT,
+                                ty: wgpu::BindingType::Texture 
+                                {
+                                    sample_type: wgpu::TextureSampleType::Uint,
+                                    view_dimension: wgpu::TextureViewDimension::D2,
+                                    multisampled: false
+                                },
+                                count: None
+                            }]
+                        }
+                    ),
+                    entries: &[wgpu::BindGroupEntry
+                    {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&view)
+                    }]
+                }
+            ),
+            pipeline: device.create_render_pipeline
+            (
+                &wgpu::RenderPipelineDescriptor
+                {
+                    label: Some("output render pipeline"),
+                    layout: None,
+                    vertex: wgpu::VertexState
+                    {
+                        module, entry_point: "vertex", buffers: &[vertex_layout_desc()]
+                    },
+                    primitive: wgpu::PrimitiveState
+                    {
+                        topology: wgpu::PrimitiveTopology::TriangleList,
+                        strip_index_format: None,
+                        front_face: wgpu::FrontFace::Cw,
+                        cull_mode: None,
+                        unclipped_depth: false,
+                        polygon_mode: wgpu::PolygonMode::Fill,
+                        conservative: false
+                    },
+                    depth_stencil: None,
+                    multisample: wgpu::MultisampleState::default(),
+                    fragment: Some
+                    (
+                        wgpu::FragmentState 
+                        {
+                            module,
+                            entry_point: "fragment",
+                            targets: &[Some(wgpu::ColorTargetState
+                            {
+                                format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                                blend: Some(wgpu::BlendState::REPLACE),
+                                write_mask: wgpu::ColorWrites::COLOR
+                            })]
+                        }
+                    ),
+                    multiview: None
+                }
+            ),
+            vertex_buffer: wgpu::util::DeviceExt::create_buffer_init
+            (
+                device,
+                &wgpu::util::BufferInitDescriptor
+                {
+                    label: None,
+                    contents: bytemuck::cast_slice(&vertices_from_size(1.,1.)),
+                    usage: wgpu::BufferUsages::VERTEX
+                }
+            ),
+            view,
+        }
+    }
+
+    /// copy output to this texture
+    pub fn copy_to(&self, encoder: &mut wgpu::CommandEncoder, dest: &wgpu::TextureView)
+    {
+        let mut pass = encoder.begin_render_pass
+        (
+            &wgpu::RenderPassDescriptor
+            {
+                label: Some("copy texture renderpass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment
+                {
+                    view: dest,
+                    resolve_target: None,
+                    ops: Default::default(),
+                })],
+                depth_stencil_attachment: None
+            }
+        );
+
+        pass.set_pipeline(&self.pipeline);
+        pass.set_bind_group(0, &self.bindgroup, &[]);
+        pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+
+        pass.draw(0..6, 0..1)
     }
 }
 

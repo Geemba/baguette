@@ -15,7 +15,6 @@ rendering = { package = "baguette-rendering", path = "crates/baguette-rendering"
 math = { package = "baguette-math", path = "crates/baguette-math" }
 input = { package = "baguette-input", path = "crates/baguette-input" }
 audio = { package = "baguette-audio", path = "crates/baguette-audio" }
-ui = { package = "baguette-egui", path = "crates/baguette-egui" }
 
 [workspace]
 members = ["crates/*"]
@@ -25,7 +24,6 @@ app = { package = "baguette-app", path = "crates/baguette-app" }
 input = { package = "baguette-input", path = "crates/baguette-input" }
 baguette-math = { package = "baguette-math", path = "crates/baguette-math" }
 rendering = { package = "baguette-rendering", path = "crates/baguette-rendering" }
-ui = { package = "baguette-egui", path = "crates/baguette-egui" }
 
 [profile.dev]
 opt-level = 0

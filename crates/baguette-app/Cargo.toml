@@ -8,4 +8,3 @@ license.workspace = true
 ahash = "*"
 input = { workspace = true }
 rendering = { workspace = true }
-ui = { workspace = true }

@@ -1,3 +1,5 @@
+//! rendering module of baguette
+
 pub use input::winit::window::Window;
 
 pub(crate) use input::*;
@@ -15,6 +17,10 @@ pub use sprite::SpriteLayout;
 #[path ="rendering/renderer.rs"]
 pub mod renderer;
 pub use renderer::*;
+
+#[path ="rendering/ui/ui.rs"]
+pub mod ui;
+pub use ui::*;
 
 #[path ="rendering/renderpasses.rs"]
 mod renderpasses;
@@ -45,7 +51,6 @@ pub use vertex::*;
 pub use texture::*;
 pub use mesh::*;
 pub use util::*;
-
 
 
 pub use wgpu::SurfaceError;

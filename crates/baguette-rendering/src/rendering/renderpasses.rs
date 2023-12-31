@@ -7,12 +7,12 @@ pub enum Passes
 
 impl Passes
 {
-    pub(crate) fn draw(&self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) -> Result<(), wgpu::SurfaceError>
+    pub(crate) fn draw<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>) -> Result<(), wgpu::SurfaceError>
     {
         match self
         {
             Self::SpriteSheet(pass) => pass as &dyn RenderPass,
-        }.draw(encoder, view)
+        }.draw(pass)
     }
 }
 
@@ -44,11 +44,9 @@ pub trait RenderPass
     fn add_pass() -> Passes where Self: Sized;
     
     #[allow(clippy::cast_possible_truncation)]
-    fn draw
+    fn draw<'a>
     (
-        &self,
-        encoder: &mut wgpu::CommandEncoder,
-        view: &wgpu::TextureView
-        
+        &'a self,
+        pass: &mut wgpu::RenderPass<'a>        
     ) -> Result<(), wgpu::SurfaceError>;
 }

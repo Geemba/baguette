@@ -8,11 +8,12 @@ pub fn get_in_project_root(path : &str) -> String
     project_root() + path
 }
 
-/// 
 /// returns the project root as string
 /// # Panics
 ///
 /// panics if the path is not found.
+/// 
+/// todo: way better to keep as os string
 pub fn project_root() -> String
 {
     project_root_path().unwrap().to_str().unwrap().to_owned()
@@ -38,14 +39,14 @@ pub type WindowTheme = window::Theme;
 /// a dynamically dispatched fsm that is still unactive
 pub type UninitDynFsm = dynamic::Fsm<dynamic::UnactiveState>;
 
-/// a statically dispatched fsm that is still unactive
-pub type UninitStaticFsm<T> = r#static::Fsm<r#static::UnactiveState<T>,T>;
+///// a statically dispatched fsm that is still unactive
+//pub type UninitStaticFsm<T> = r#static::Fsm<r#static::UnactiveState<T>,T>;
 
 /// a dynamically dispatched fsm that has been initialized
 pub type InitDynFsm = dynamic::Fsm<dynamic::ActiveState>;
 
-/// a statically dispatched fsm that has been initialized
-pub type InitStaticFsm<T> = r#static::Fsm<r#static::ActiveState<T>,T>;
+///// a statically dispatched fsm that has been initialized
+//pub type InitStaticFsm<T> = r#static::Fsm<r#static::ActiveState<T>,T>;
 
 
 enum FsmState
@@ -109,29 +110,27 @@ pub type Transition<St> = (fn(&St) -> bool, StateId);
 
 impl AppBuilder<UninitDynFsm>
 {
-    /// runs a new `app` using `custom dispatch` to store the states
-    /// 
-    /// # panics
-    /// 
-    /// panics if any state isn't subsequently added
-    pub fn with_dispatch<V : Dispatcher>(self) -> AppBuilder<UninitStaticFsm<V>>
-    {
-        assert!
-        (
-            self.fsm.is_empty(),"set dispatch before adding your states 👮"
-        );
-
-        AppBuilder
-        {
-            wbuilder: self.wbuilder,
-            focus: self.focus,
-
-            // when a new static fsm is added it receives en empty state
-            // as placeholder which is not able to be dispatched and therefore
-            // throws a panic, so it's necessary to pass states to replace it
-            fsm: UninitStaticFsm::new()
-        }
-    }
+    ///// runs a new `app` using `custom dispatch` to store the states
+    ///// 
+    ///// # panics
+    ///// 
+    ///// panics if any state isn't subsequently added
+    //pub fn with_dispatch<V : Dispatcher>(self) -> AppBuilder<UninitStaticFsm<V>>
+    //{
+    //    assert!
+    //    (
+    //        self.fsm.is_empty(),"set dispatch before adding your states 👮"
+    //    );
+    //    AppBuilder
+    //    {
+    //        wbuilder: self.wbuilder,
+    //        focus: self.focus,
+    //        // when a new static fsm is added it receives en empty state
+    //        // as placeholder which is not able to be dispatched and therefore
+    //        // throws a panic, so it's necessary to pass states to replace it
+    //        fsm: UninitStaticFsm::new()
+    //    }
+    //}
 
     /// adds a `state` to the `fsm` with the provided transitions 
     /// # examples
@@ -197,7 +196,7 @@ impl AppBuilder<UninitDynFsm>
                     {
                         app.check_input(&event);
 
-                        match event 
+                        match event
                         {
                             WindowEvent::RedrawRequested if app.focused => 
                             {
@@ -215,11 +214,11 @@ impl AppBuilder<UninitDynFsm>
                                     Err(rendering::SurfaceError::Timeout) => println!("surface timeout")
                                 }
 
-                                app.input.flush_released_keys();
+                                app.input.flush_released_keys()
                             }
                             
                             WindowEvent::CloseRequested => target.exit(),
-                            WindowEvent::Resized(new_size) => on_screen_resize().invoke(new_size),
+                            WindowEvent::Resized(new_size) => app.renderer.resize(new_size),
                             WindowEvent::Focused(value) => app.focused = value,
                             _ => ()
                         }
@@ -247,91 +246,6 @@ impl AppBuilder<UninitDynFsm>
         };
 
         pollster::block_on(application).unwrap()
-    }
-}
-
-impl<T: Dispatcher + 'static> AppBuilder<UninitStaticFsm<T>>
-{
-    pub fn add_state<St: r#static::State<T> + 'static>(mut self, transitions: fn() -> Vec<Transition<St>>) -> Self
-    {
-        let transitions =
-        unsafe 
-        {
-            core::mem::transmute::
-            <fn() -> Vec<(fn(&St) -> bool, StateId)>,
-             fn() -> Vec<(fn(&T) -> bool, StateId)>
-            >(transitions)
-        };
-
-        self.fsm.add_state::<St>(transitions);
-
-        self
-    }
-
-    pub fn run(self) -> Result<(), error::EventLoopError>
-    {
-        let application = async move
-        {
-            let eventloop = match event_loop::EventLoopBuilder::default().build()
-            {
-                Ok(eventloop) => eventloop,
-                Err(err) => panic!("{err}")
-            };
-     
-            let mut app = Application::new
-            (
-                self.wbuilder
-                .build(&eventloop)
-                .expect("unable to create window")
-            );
-
-            let mut fsm = self.fsm.build();
-
-            eventloop.run(move |event: Event<()>, target|
-                match event
-                {
-                    Event::WindowEvent { event : WindowEvent::RedrawRequested, ..} if app.focused =>
-                    {
-                        fsm.update();
-            
-                        match app.renderer.render()
-                        {
-                            Ok(_) => (),
-                            // Reconfigure the surface if it's lost or outdated
-                            Err(rendering::SurfaceError::Lost | rendering::SurfaceError::Outdated) => println!("surface lost or outdated, reconnecting"),
-                    
-                            // The system is out of memory, we should probably quit
-                            Err(rendering::SurfaceError::OutOfMemory) => target.exit(),
-                    
-                            Err(rendering::SurfaceError::Timeout) => println!("Surface timeout")
-                        }
-                
-                        app.input.flush_released_keys()
-                    }
-
-                    Event::WindowEvent { event, .. } =>
-                    {
-                        app.input.check(&event);
-                
-                        if let WindowEvent::CloseRequested = event { target.exit() }
-
-                        if let WindowEvent::Resized(new_size) = event { on_screen_resize().invoke(new_size) }
-
-                        if let WindowEvent::Focused(value) = event { app.focused = value }              
-                    }
-
-                    Event::LoopExiting => (/*this is the end point of the program */),
-
-                    Event::Resumed => app.renderer.resume(),
-
-                    Event::Suspended => app.renderer.suspend(),
-   
-                    _ => ()
-                }
-            )
-        };
-
-        pollster::block_on(application)
     }
 }
 

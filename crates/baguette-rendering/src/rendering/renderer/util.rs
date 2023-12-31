@@ -36,7 +36,7 @@ pub fn create_buffer(desc: BufferDescriptor) -> Buffer
 {
     device().create_buffer(&desc)
 }
-    /// Schedule a data write into `buffer` starting at `offset`.
+    /// Schedule a data write into `buffer` with offset 0.
     ///
     /// This method is intended to have low performance costs.
     /// As such, the write is not immediately submitted, and instead enqueued

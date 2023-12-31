@@ -7,19 +7,31 @@ pub struct Vertex
 }
 
 #[allow(clippy::nonstandard_macro_braces)]
-pub fn vertices_from_size(size : baguette_math::Vec2) -> Vec<Vertex>
+pub fn vertices_from_size_indexed(x: f32, y: f32) -> [Vertex; 4]
 {
-    vec!
     [
-        Vertex{ position:[-size.x, size.y, 0.0], tex_coords: [0., 0.] },
-        Vertex{ position:[-size.x, -size.y, 0.0], tex_coords: [0., 1.] },
-        Vertex{ position:[size.x, -size.y, 0.0], tex_coords: [1., 1.] },
-        Vertex{ position:[size.x, size.y, 0.0], tex_coords: [1., 0.] },
+        Vertex{ position:[-x, y, 0.0], tex_coords: [0., 0.] },
+        Vertex{ position:[-x, -y, 0.0], tex_coords: [0., 1.] },
+        Vertex{ position:[x, -y, 0.0], tex_coords: [1., 1.] },
+        Vertex{ position:[x, y, 0.0], tex_coords: [1., 0.] },
     ]
 }
 
-/// creates a 4 vertices index buffer from a texture
-pub fn indices_from_texture() -> Vec<u16>
+#[allow(clippy::nonstandard_macro_braces)]
+pub fn vertices_from_size(x: f32, y: f32) -> [Vertex; 6]
+{
+    [
+        Vertex{ position:[-x, y, 0.0], tex_coords: [0., 0.] },
+        Vertex{ position:[-x, -y, 0.0], tex_coords: [0., 1.] },
+        Vertex{ position:[x, -y, 0.0], tex_coords: [1., 1.] },
+
+        Vertex{ position:[x, -y, 0.0], tex_coords: [1., 1.] },
+        Vertex{ position:[-x, y, 0.0], tex_coords: [0., 0.] },
+        Vertex{ position:[x, y, 0.0], tex_coords: [1., 0.] },
+    ]
+}
+/// creates an index array usable as index buffer to render a quad
+pub fn indices_quad() -> Vec<u16>
 {
     vec![0, 1 ,2 , 2, 3 ,0]
 }

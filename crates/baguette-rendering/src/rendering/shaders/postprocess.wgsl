@@ -15,7 +15,7 @@ struct CornerOutput
 }
 
 @vertex
-fn vertex(vertex : CornerInput) -> CornerOutput
+fn vertex(vertex: CornerInput) -> CornerOutput
 {
     return CornerOutput
     (

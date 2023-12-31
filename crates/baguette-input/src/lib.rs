@@ -1,7 +1,6 @@
 //! # baguette-input
 //! baguette's input module
 
-use winit::dpi::PhysicalSize;
 use winit::keyboard::PhysicalKey;
 
 pub use winit::event::*;
@@ -9,18 +8,7 @@ pub use winit::keyboard::KeyCode;
 
 pub use winit;
 
-    // callbacks to application events
-    static mut ON_SCREEN_RESIZE : once_cell::sync::Lazy<Callback<PhysicalSize<u32>>> = once_cell::sync::Lazy::new(Default::default);
-
-    /// callback to execute a function when the window is resized
-    /// 
-    /// you can attach a callback by using implementing the [CallbackListener] trait
-    pub fn on_screen_resize() -> &'static mut Callback<PhysicalSize<u32>>
-    {
-        unsafe { &mut ON_SCREEN_RESIZE }
-    }
-
-pub static mut INPUT : once_cell::sync::OnceCell<Input> = once_cell::sync::OnceCell::new();
+pub static mut INPUT: once_cell::sync::OnceCell<Input> = once_cell::sync::OnceCell::new();
 
 /// returns `true` the first frame the key is pressed
 /// 
@@ -31,7 +19,7 @@ pub fn get_key_down(keycode : KeyCode) -> bool
 }
 
 /// returns `true` if the key is pressed in the current frame
-pub fn get_key_holding(keycode : KeyCode) -> bool
+pub fn get_key_holding(keycode: KeyCode) -> bool
 {
     unsafe { INPUT.get_mut().unwrap().get_key_holding(keycode) }
 }
@@ -39,7 +27,7 @@ pub fn get_key_holding(keycode : KeyCode) -> bool
 /// returns `true` when the key is released
 /// 
 /// use [get_key_holding] to check if the key is pressed in the current frame
-pub fn get_key_up(keycode : KeyCode) -> bool
+pub fn get_key_up(keycode: KeyCode) -> bool
 {
     unsafe { INPUT.get_mut().unwrap().get_key_up(keycode) }
 }

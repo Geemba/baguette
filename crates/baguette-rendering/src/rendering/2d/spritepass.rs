@@ -57,7 +57,7 @@ impl SpritePass
                     // for every vertex we pass the x and y local position
                     wgpu::VertexBufferLayout 
                     {
-                        array_stride: core::mem::size_of::<[f32; 2]>() as wgpu::BufferAddress,
+                        array_stride: core::mem::size_of::<[f32; 2]>() as u64,
                         step_mode: wgpu::VertexStepMode::Vertex,
                         attributes: &wgpu::vertex_attr_array!
                         [
@@ -68,7 +68,7 @@ impl SpritePass
                     // that we'll use to get the uvs of the vertices from the storage buffer
                     wgpu::VertexBufferLayout
                     {
-                        array_stride: core::mem::size_of::<([[f32; 4]; 4], u32)>() as wgpu::BufferAddress,
+                        array_stride: core::mem::size_of::<([[f32; 4]; 4], u32)>() as u64,
                         step_mode: wgpu::VertexStepMode::Instance,
                         attributes: &wgpu::vertex_attr_array!
                         [
@@ -109,8 +109,8 @@ impl SpritePass
                 unclipped_depth: false,
                 conservative: false
             },
-            depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),
+            depth_stencil: None,
             multiview: None
         });
 
@@ -152,44 +152,22 @@ impl SpritePass
 
 impl RenderPass for SpritePass
 {
-    fn draw(&self, encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) -> Result<(), wgpu::SurfaceError>
+    fn draw<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>) -> Result<(), wgpu::SurfaceError>
     {
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor
-        {
-            label: Some("2d spritesheet render pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment
-            {
-                view,
-                resolve_target: None,
-                ops: wgpu::Operations
-                {
-                    load: wgpu::LoadOp::Clear(wgpu::Color
-                    {
-                        r: 0.2,
-                        g: 0.5,
-                        b: 0.5,
-                        a: 1.
-                    }),
-                    store: true
-                }
-            })],
-            depth_stencil_attachment: None
-        });
-        
-        render_pass.set_pipeline(&self.render_pipeline);
+        pass.set_pipeline(&self.render_pipeline);
         
         for binding in self.buffers.iter()
         {
             let binding = unsafe { binding.as_ref() };
 
-            render_pass.set_bind_group(0, &binding.bindgroup, &[]);
-            render_pass.set_bind_group(1, self.camera_bind_group, &[]);
+            pass.set_bind_group(0, &binding.bindgroup, &[]);
+            pass.set_bind_group(1, self.camera_bind_group, &[]);
     
-            render_pass.set_vertex_buffer(0, binding.vertex_buffer.slice(..));
-            render_pass.set_vertex_buffer(1, binding.instance_buffer.0.slice(..));
+            pass.set_vertex_buffer(0, binding.vertex_buffer.slice(..));
+            pass.set_vertex_buffer(1, binding.instance_buffer.0.slice(..));
 
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            render_pass.draw_indexed(0..SPRITE_INDICES.len() as u32, 0, 0..binding.instance_buffer.1);
+            pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            pass.draw_indexed(0..SPRITE_INDICES.len() as u32, 0, 0..binding.instance_buffer.1);
         }
 
         Ok(())
