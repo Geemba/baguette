@@ -10,10 +10,10 @@ pub struct Ui
     ctx: egui::Context,
     renderer: egui_wgpu::Renderer,
     screen: ScreenData,
-
-    texture: (wgpu::Texture, wgpu::TextureView),
+    tex_to_remove: Vec<egui::TextureId>
 }
 
+#[derive(Clone, Copy)]
 struct ScreenData
 {
     width: u32,
@@ -26,20 +26,6 @@ impl Ui
 {
     pub fn new(width: u32, height: u32, scale: f32) -> Self
     {
-        let texture = crate::create_texture(wgpu::TextureDescriptor
-        {
-            label: Some("ui view"),
-            size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Bgra8UnormSrgb,
-            usage: wgpu::TextureUsages::COPY_SRC,
-            view_formats: &[],
-        });
-
-        let view = texture.create_view(&Default::default());
-
         Self
         {
             ctx: Default::default(),
@@ -53,23 +39,48 @@ impl Ui
                 height,
                 scale
             },
-            texture: (texture, view),
+            tex_to_remove: Vec::new(),
         }
     }
 
     pub(crate) fn render<'a>
     (
-        &'a self, pass: &mut wgpu::RenderPass<'a>, surf_tex: &wgpu::Texture, view: &wgpu::TextureView
+        &'a mut self, pass: &mut wgpu::RenderPass<'a>
     )
     {
         let output = self.ctx.end_frame();
-        
+
         let clipped_primitives = &self.ctx.tessellate
         (
             output.shapes, self.screen.scale
         );
 
+        for (id,ref delta) in output.textures_delta.set
+        {
+            self.renderer.update_texture(crate::device(), crate::queue(), id, delta)
+        }
+
+        self.renderer.update_buffers
+        (
+            crate::device(), crate::queue(),
+            &mut crate::create_command_encoder("update egui buffers"),
+            clipped_primitives, self.screen
+        );
+
         self.renderer.render(pass, clipped_primitives, &self.screen);
+        
+        //for ref id in output.textures_delta.free
+        //{
+        //   self.renderer.free_texture(id);
+        //}
+    }
+
+    pub fn free_textures(&mut self)
+    {
+        for id in &self.tex_to_remove
+        {
+            self.renderer.free_texture(id)
+        }
     }
 
     pub fn begin_frame(&self, input: egui::RawInput)

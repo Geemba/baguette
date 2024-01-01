@@ -103,25 +103,6 @@ pub trait CallbackTrait: Send + Sync {
     );
 }
 
-/// Information about the screen used for rendering.
-pub struct ScreenDescriptor {
-    /// Size of the window in physical pixels.
-    pub size_in_pixels: [u32; 2],
-
-    /// HiDPI scale factor (pixels per point).
-    pub pixels_per_point: f32,
-}
-
-impl ScreenDescriptor {
-    /// size in "logical" points
-    fn screen_size_in_points(&self) -> [f32; 2] {
-        [
-            self.size_in_pixels[0] as f32 / self.pixels_per_point,
-            self.size_in_pixels[1] as f32 / self.pixels_per_point,
-        ]
-    }
-}
-
 /// Uniform buffer used when rendering.
 #[derive(Clone, Copy, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
@@ -370,8 +351,8 @@ impl Renderer {
     /// Executes the egui renderer onto an existing wgpu renderpass.
     pub fn render<'a>
     (
-        &'a self,
-        render_pass: & mut wgpu::RenderPass<'a>,
+        &'a mut self,
+        render_pass: &mut wgpu::RenderPass<'a>,
         paint_jobs: &[egui::ClippedPrimitive],
         screen_data: &super::ScreenData,
     )
@@ -391,26 +372,29 @@ impl Renderer {
             primitive,
         } in paint_jobs
         {
-            if needs_reset {
-                render_pass.set_viewport(
+            if needs_reset
+            {
+                render_pass.set_viewport
+                (
                     0.0,
                     0.0,
                     size_in_pixels[0] as f32,
                     size_in_pixels[1] as f32,
                     0.0,
-                    1.0,
+                    1.0
                 );
                 render_pass.set_pipeline(&self.pipeline);
                 render_pass.set_bind_group(0, &self.uniform_bind_group, &[]);
                 needs_reset = false;
             }
-
             {
                 let rect = ScissorRect::new(clip_rect, pixels_per_point, size_in_pixels);
 
-                if rect.width == 0 || rect.height == 0 {
+                if rect.width == 0 || rect.height == 0
+                {
                     // Skip rendering zero-sized clip areas.
-                    if let Primitive::Mesh(_) = primitive {
+                    if let Primitive::Mesh(_) = primitive
+                    {
                         // If this is a mesh, we need to advance the index and vertex buffer iterators:
                         index_buffer_slices.next().unwrap();
                         vertex_buffer_slices.next().unwrap();
@@ -421,39 +405,50 @@ impl Renderer {
                 render_pass.set_scissor_rect(rect.x, rect.y, rect.width, rect.height);
             }
 
-            match primitive {
-                Primitive::Mesh(mesh) => {
+            match primitive
+            {
+                Primitive::Mesh(mesh) =>
+                {
                     let index_buffer_slice = index_buffer_slices.next().unwrap();
                     let vertex_buffer_slice = vertex_buffer_slices.next().unwrap();
 
-                    if let Some((_texture, bind_group)) = self.textures.get(&mesh.texture_id) {
+                    if let Some((_texture, bind_group)) = self.textures.get(&mesh.texture_id)
+                    {
                         render_pass.set_bind_group(1, bind_group, &[]);
-                        render_pass.set_index_buffer(
-                            self.index_buffer.buffer.slice(
-                                index_buffer_slice.start as u64..index_buffer_slice.end as u64,
+                        render_pass.set_index_buffer
+                        (
+                            self.index_buffer.buffer.slice
+                            (
+                                index_buffer_slice.start as u64..index_buffer_slice.end as u64
                             ),
-                            wgpu::IndexFormat::Uint32,
+                            wgpu::IndexFormat::Uint32
                         );
-                        render_pass.set_vertex_buffer(
+                        render_pass.set_vertex_buffer
+                        (
                             0,
-                            self.vertex_buffer.buffer.slice(
-                                vertex_buffer_slice.start as u64..vertex_buffer_slice.end as u64,
-                            ),
+                            self.vertex_buffer.buffer.slice
+                            (
+                                vertex_buffer_slice.start as u64..vertex_buffer_slice.end as u64
+                            )
                         );
-                        render_pass.draw_indexed(0..mesh.indices.len() as u32, 0, 0..1);
+                        render_pass.draw_indexed(0..mesh.indices.len() as u32, 0, 0..1)
                     }
                 }
-                Primitive::Callback(callback) => {
-                    let Some(cbfn) = callback.callback.downcast_ref::<Callback>() else {
+                Primitive::Callback(callback) =>
+                {
+                    let Some(cbfn) = callback.callback.downcast_ref::<Callback>() else
+                    {
                         // We already warned in the `prepare` callback
                         continue;
                     };
 
-                    if callback.rect.is_positive() {
+                    if callback.rect.is_positive()
+                    {
 
                         needs_reset = true;
 
-                        let info = PaintCallbackInfo {
+                        let info = PaintCallbackInfo
+                        {
                             viewport: callback.rect,
                             clip_rect: *clip_rect,
                             pixels_per_point,
@@ -472,17 +467,18 @@ impl Renderer {
 
                             let viewport_px = info.viewport_in_pixels();
 
-                            render_pass.set_viewport(
+                            render_pass.set_viewport
+                            (
                                 viewport_px.left_px as f32,
                                 viewport_px.top_px as f32,
                                 viewport_px.width_px as f32,
                                 viewport_px.height_px as f32,
                                 0.0,
-                                1.0,
+                                1.0
                             );
                         }
 
-                        cbfn.0.paint(info, render_pass, &self.callback_resources);
+                        cbfn.0.paint(info, render_pass, &self.callback_resources)
                     }
                 }
             }
@@ -492,12 +488,13 @@ impl Renderer {
     }
 
     /// Should be called before `render()`.
-    pub fn update_texture(
+    pub fn update_texture
+    (
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        id: epaint::TextureId,
-        image_delta: &epaint::ImageDelta,
+        id: egui::TextureId,
+        image_delta: &egui::epaint::ImageDelta,
     ) {
 
         let width = image_delta.image.width() as u32;
@@ -605,7 +602,8 @@ impl Renderer {
         };
     }
 
-    pub fn free_texture(&mut self, id: &epaint::TextureId) {
+    pub fn free_texture(&mut self, id: &epaint::TextureId) 
+    {
         self.textures.remove(id);
     }
 
@@ -756,26 +754,36 @@ impl Renderer {
     /// Should be called before `render()`.
     ///
     /// Returns all user-defined command buffers gathered from [`CallbackTrait::prepare`] & [`CallbackTrait::finish_prepare`] callbacks.
-    pub fn update_buffers(
+    pub fn update_buffers
+    (
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
         paint_jobs: &[epaint::ClippedPrimitive],
-        screen_descriptor: &ScreenDescriptor,
-    ) -> Vec<wgpu::CommandBuffer> {
+        screen_desc: super::ScreenData,
+    ) -> Vec<wgpu::CommandBuffer>
+    {
 
-        let screen_size_in_points = screen_descriptor.screen_size_in_points();
+        let screen_size_in_points = 
+        [
+            screen_desc.width as f32 / screen_desc.scale,
+            screen_desc.height as f32 / screen_desc.scale,
+        ];
 
-        let uniform_buffer_content = UniformBuffer {
+        let uniform_buffer_content = UniformBuffer
+        {
             screen_size_in_points,
-            _padding: Default::default(),
+            _padding: Default::default()
         };
-        if uniform_buffer_content != self.previous_uniform_buffer_content {
-            queue.write_buffer(
+
+        if uniform_buffer_content != self.previous_uniform_buffer_content
+        {
+            queue.write_buffer
+            (
                 &self.uniform_buffer,
                 0,
-                bytemuck::cast_slice(&[uniform_buffer_content]),
+                bytemuck::cast_slice(&[uniform_buffer_content])
             );
             self.previous_uniform_buffer_content = uniform_buffer_content;
         }

@@ -204,7 +204,7 @@ impl AppBuilder<UninitDynFsm>
 
                                 match app.renderer.render()
                                 {
-                                    Ok(_) => (),
+                                    Ok(_) => app.renderer.post_render(),
                                     // Reconfigure the surface if it's lost or outdated
                                     Err(rendering::SurfaceError::Lost | rendering::SurfaceError::Outdated) => println!("surface lost or outdated, reconnecting"),
 

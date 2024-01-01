@@ -9,7 +9,7 @@ pub struct Renderer
     output: FrameOutput,
 
     adapter: wgpu::Adapter,
-    passes: Option<RenderPasses>,
+    passes: Option<RenderPasses>
 }
 
 // integration specific
@@ -26,6 +26,7 @@ impl Renderer
         );
         
         self.ui.update_screen_size(new_size.width, new_size.height);
+        self.output.update_texture(device(), new_size.width, new_size.height);
 
         Camera::resize_all(physical_width / physical_height);
 
@@ -70,7 +71,7 @@ impl Renderer
     /// # Errors
     ///
     /// this function will return an error if the surface is not able to be retrieved.
-    pub fn render(&self) -> Result<(), wgpu::SurfaceError>
+    pub fn render(&mut self) -> Result<(), wgpu::SurfaceError>
     {
         Camera::update_all();
 
@@ -109,7 +110,7 @@ impl Renderer
                     render_pass.draw(&mut pass)?
                 }
             
-                self.ui.render(&mut pass, &output.texture,  &self.output.view);
+                self.ui.render(&mut pass);
             }
         }
 
@@ -119,6 +120,51 @@ impl Renderer
         output.present();
         
         Ok(())
+    }
+
+    /// simply renders a solid color
+    ///
+    /// # Errors
+    ///
+    /// this function will return an error if the surface is not able to be retrieved.
+    pub fn render_plain_color(&self, r:f64,g:f64,b:f64) -> Result<(), wgpu::SurfaceError>
+    {
+        Camera::update_all();
+
+        let output = surface().get_current_texture()?;
+        let frame_output = &output.texture.create_view(&Default::default());
+
+        let mut encoder = create_command_encoder("render encoder");
+        
+        encoder.begin_render_pass(&wgpu::RenderPassDescriptor
+        {
+            label: Some("renderer pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment
+            {
+                view: frame_output,
+                resolve_target: None,
+                ops: wgpu::Operations
+                {
+                    load: wgpu::LoadOp::Clear(wgpu::Color { r, g, b, a: 1. }),
+                    store: true
+                }
+            })],
+            depth_stencil_attachment: None
+        });
+        
+        queue().submit([encoder.finish()]);
+        output.present();
+        
+        Ok(())
+    }
+
+    /// can be used to release resources after rendering
+    pub fn post_render(&mut self)
+    {
+        if self.passes.is_some() 
+        {    
+            self.ui.free_textures()
+        }        
     }
 
     pub fn suspend(&mut self)
@@ -187,7 +233,7 @@ impl Renderer
                 }, 
                 None
             )
-        ).expect("bruh failed to create device");
+        ).expect("bruh failed to retrieve a device");
 
             // width and height of the rendered area in pixels
             let (width,height) = window.inner_size().into();
@@ -205,11 +251,11 @@ impl Renderer
         Self { adapter, passes: None, window, ui, output }
     }
 
-    /// Returns the resume of this [`Renderer`].
+    /// this is where the window actually starts getting rendered.
     ///
     /// # Panics
     ///
-    /// panics if the window is not capable of being recreated.
+    /// panics if the surface is not capable of being created.
     pub fn resume(&mut self)
     {    
         let surface = unsafe { instance().create_surface(&self.window) }
@@ -316,25 +362,27 @@ impl FrameOutput
             }
         );
 
+        let bindgroup = device.create_bind_group
+        (
+            &wgpu::BindGroupDescriptor
+            {
+                label: Some("frame output bindgroup"),
+                layout: bindgroup_layout,
+                entries: &[wgpu::BindGroupEntry
+                {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&view)
+                },wgpu::BindGroupEntry
+                {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&sampler)
+                }]
+            }
+        );
+
         Self
         {
-            bindgroup: device.create_bind_group
-            (
-                &wgpu::BindGroupDescriptor
-                {
-                    label: Some("frame output bindgroup"),
-                    layout: bindgroup_layout,
-                    entries: &[wgpu::BindGroupEntry
-                    {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&view)
-                    },wgpu::BindGroupEntry
-                    {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&sampler)
-                    }]
-                }
-            ),
+            bindgroup,
             pipeline: device.create_render_pipeline
             (
                 &wgpu::RenderPipelineDescriptor
@@ -395,6 +443,69 @@ impl FrameOutput
             view,
             sampler
         }
+    }
+
+    /// update the texture to match the width and height arguments
+    fn update_texture(&mut self, device: &wgpu::Device, width: u32,height: u32)
+    {
+        self.view = device.create_texture
+        (
+            &wgpu::TextureDescriptor
+            {
+                label: Some("output texture"),
+                size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                view_formats: &[],
+            }
+        ).create_view(&Default::default());
+
+        let bindgroup_layout = &device.create_bind_group_layout
+        (
+            &wgpu::BindGroupLayoutDescriptor
+            {
+                label: None,
+                entries: &[wgpu::BindGroupLayoutEntry
+                {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture 
+                    {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false
+                    },
+                    count: None
+                },wgpu::BindGroupLayoutEntry
+                {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
+                    count: None
+                }]
+            }
+        );
+
+        self.bindgroup = device.create_bind_group
+        (
+            &wgpu::BindGroupDescriptor
+            {
+                label: Some("frame output bindgroup"),
+                layout: bindgroup_layout,
+                entries: &[wgpu::BindGroupEntry
+                {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&self.view)
+                },wgpu::BindGroupEntry
+                {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&self.sampler)
+                }]
+            }
+        );  
     }
 
     /// copy output to this texture
