@@ -85,7 +85,7 @@ impl Renderer
                 label: Some("renderer pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment
                 {
-                    view: frame_output,
+                    view: &self.output.view,
                     resolve_target: None,
                     ops: wgpu::Operations
                     {
@@ -109,10 +109,12 @@ impl Renderer
                     render_pass.draw(&mut pass)?
                 }
             
-                self.ui.render(&mut pass, &output.texture, frame_output);
+                self.ui.render(&mut pass, &output.texture,  &self.output.view);
             }
         }
 
+        self.output.copy_to(&mut encoder, frame_output);
+        
         queue().submit([encoder.finish()]);
         output.present();
         
@@ -246,6 +248,7 @@ struct FrameOutput
     bindgroup: wgpu::BindGroup,
     vertex_buffer: wgpu::Buffer,
     pipeline: wgpu::RenderPipeline,
+    sampler: wgpu::Sampler,
 }
 impl FrameOutput
 {
@@ -260,6 +263,32 @@ impl FrameOutput
                 (
                     include_str!("shaders/tex_to_tex_copy.wgsl").into()
                 )
+            }
+        );
+
+        let bindgroup_layout = &device.create_bind_group_layout
+        (
+            &wgpu::BindGroupLayoutDescriptor
+            {
+                label: None,
+                entries: &[wgpu::BindGroupLayoutEntry
+                {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture 
+                    {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false
+                    },
+                    count: None
+                },wgpu::BindGroupLayoutEntry
+                {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
+                    count: None
+                }]
             }
         );
 
@@ -278,6 +307,15 @@ impl FrameOutput
             }
         ).create_view(&Default::default());
 
+        let sampler = device.create_sampler
+        (
+            &wgpu::SamplerDescriptor 
+            {
+                label: Some("output sampler"),
+                ..Default::default()
+            }
+        );
+
         Self
         {
             bindgroup: device.create_bind_group
@@ -285,29 +323,15 @@ impl FrameOutput
                 &wgpu::BindGroupDescriptor
                 {
                     label: Some("frame output bindgroup"),
-                    layout: &device.create_bind_group_layout
-                    (
-                        &wgpu::BindGroupLayoutDescriptor
-                        {
-                            label: None,
-                            entries: &[wgpu::BindGroupLayoutEntry
-                            {
-                                binding: 0,
-                                visibility: wgpu::ShaderStages::FRAGMENT,
-                                ty: wgpu::BindingType::Texture 
-                                {
-                                    sample_type: wgpu::TextureSampleType::Uint,
-                                    view_dimension: wgpu::TextureViewDimension::D2,
-                                    multisampled: false
-                                },
-                                count: None
-                            }]
-                        }
-                    ),
+                    layout: bindgroup_layout,
                     entries: &[wgpu::BindGroupEntry
                     {
                         binding: 0,
                         resource: wgpu::BindingResource::TextureView(&view)
+                    },wgpu::BindGroupEntry
+                    {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&sampler)
                     }]
                 }
             ),
@@ -316,7 +340,15 @@ impl FrameOutput
                 &wgpu::RenderPipelineDescriptor
                 {
                     label: Some("output render pipeline"),
-                    layout: None,
+                    layout: Some(&device.create_pipeline_layout
+                    (
+                        &wgpu::PipelineLayoutDescriptor
+                        {
+                            label: Some("output pipeline descriptor"),
+                            bind_group_layouts: &[bindgroup_layout],
+                            push_constant_ranges: &[]
+                        }
+                    )),
                     vertex: wgpu::VertexState
                     {
                         module, entry_point: "vertex", buffers: &[vertex_layout_desc()]
@@ -343,7 +375,7 @@ impl FrameOutput
                             {
                                 format: wgpu::TextureFormat::Bgra8UnormSrgb,
                                 blend: Some(wgpu::BlendState::REPLACE),
-                                write_mask: wgpu::ColorWrites::COLOR
+                                write_mask: wgpu::ColorWrites::ALL
                             })]
                         }
                     ),
@@ -356,11 +388,12 @@ impl FrameOutput
                 &wgpu::util::BufferInitDescriptor
                 {
                     label: None,
-                    contents: bytemuck::cast_slice(&vertices_from_size(1.,1.)),
+                    contents: bytemuck::cast_slice(&vertices_from_size(1., 1.)),
                     usage: wgpu::BufferUsages::VERTEX
                 }
             ),
             view,
+            sampler
         }
     }
 
@@ -376,7 +409,11 @@ impl FrameOutput
                 {
                     view: dest,
                     resolve_target: None,
-                    ops: Default::default(),
+                    ops: wgpu::Operations
+                    {
+                        load: Default::default(),
+                        store: true
+                    }
                 })],
                 depth_stencil_attachment: None
             }
