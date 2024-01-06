@@ -218,7 +218,10 @@ impl AppBuilder<UninitDynFsm>
                             }
                             
                             WindowEvent::CloseRequested => target.exit(),
-                            WindowEvent::Resized(new_size) => app.renderer.resize(new_size),
+                            WindowEvent::Resized(new_size)if new_size.width > 0 && new_size.height > 0 =>
+                            {
+                                app.renderer.resize(new_size)
+                            }
                             WindowEvent::Focused(value) => app.focused = value,
                             _ => ()
                         }
@@ -233,12 +236,11 @@ impl AppBuilder<UninitDynFsm>
                         app.renderer.resume();
                         fsm.build(&mut app)
                     }
-
                     Event::Suspended =>
                     {
                         app.focused = false;
                         app.renderer.suspend()
-                    },
+                    }
                     Event::MemoryWarning => target.exit(),
                     _ => ()
                 }

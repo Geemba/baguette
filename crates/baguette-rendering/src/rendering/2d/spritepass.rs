@@ -10,17 +10,6 @@ pub struct SpritePass
     camera_bind_group: &'static wgpu::BindGroup
 }
 
-impl Drop for SpritePass
-{
-    fn drop(&mut self)
-    {
-        for bind in self.buffers.iter_mut()
-        {
-            unsafe { bind.as_mut().id.take(); }
-        }
-    }
-}
-
 impl SpritePass
 {
     pub fn new(backface_culling: bool, cam: Option<&'static Camera>) -> Self
@@ -29,13 +18,13 @@ impl SpritePass
 
         let shader = create_shader_module(wgpu::ShaderModuleDescriptor 
         {
-            label: Some("spritesheet shader"),
+            label: Some("sprite shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!(r"sprite.wgsl").into())
         });
 
         let pipeline_layout = create_pipeline_layout(wgpu::PipelineLayoutDescriptor
         {
-            label: Some("2d spritesheet pipeline layout"),
+            label: Some("2d sprite pipeline layout"),
             bind_group_layouts:
             &[
                 &bindgroup_layout(),
@@ -46,7 +35,7 @@ impl SpritePass
 
         let render_pipeline = create_render_pipeline(wgpu::RenderPipelineDescriptor 
         {
-            label: Some("2d spritesheet pipeline"),
+            label: Some("2d sprite pipeline"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState
             {
@@ -179,9 +168,7 @@ impl RenderPass for SpritePass
     }
 }
 
-pub enum SpriteLoader<'a, Path>
-    where
-        Path: Into<std::ffi::OsString>,
+pub enum SpriteLoader<'a, Path: Into<std::ffi::OsString>>
 {
     Sprite
     {

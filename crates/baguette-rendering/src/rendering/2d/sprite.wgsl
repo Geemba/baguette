@@ -14,7 +14,7 @@ struct VertexInput
 {
     @builtin(vertex_index) vertex_index: u32,
     @location(0) x: f32,
-    @location(1) y: f32,
+    @location(1) y: f32
 }
 struct InstanceInput
 {

@@ -48,6 +48,19 @@ impl Ui
         &'a mut self, pass: &mut wgpu::RenderPass<'a>
     )
     {
+        egui::Window::new("title")
+            .default_height(100.)
+            .frame(egui::Frame
+            {
+                fill: egui::Color32::from_rgb(10, 10, 10),
+                inner_margin: egui::Margin::same(3.),
+                ..Default::default()
+            })
+            .show(&self.ctx, |ui| 
+            {
+                ui.label(egui::RichText::new("Large text").font(egui::FontId::proportional(40.0)));
+            });
+
         let output = self.ctx.end_frame();
 
         let clipped_primitives = &self.ctx.tessellate
