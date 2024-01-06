@@ -146,6 +146,8 @@ impl TestA
 ```
 
 ## If you are looking for rust game engines..
+🚨 NB: if you are looking for mature and stable game engines rust is not the correct place,
+all of them are still in their infancy although they are promising engines worth trying. 🚨
 
 - [Bevy](https://github.com/bevyengine/bevy) - The bevy engine
 - [Macroquad](https://github.com/not-fl3/macroquad) - is a simple and easy to use game library for Rust programming language, heavily inspired by raylib.
