@@ -3,12 +3,14 @@
 
 #[allow(dead_code)]
 mod egui_wgpu;
+mod egui_winit;
+
 pub use egui;
 
 /// Ui renderer
 pub struct Ui
 {
-    ctx: egui::Context,
+    state: egui_winit::State,
     renderer: egui_wgpu::Renderer,
     screen: ScreenData,
     tex_to_remove: Vec<egui::TextureId>
@@ -25,11 +27,11 @@ struct ScreenData
 
 impl Ui
 {
-    pub fn new(width: u32, height: u32, scale: f32) -> Self
+    pub fn new(width: u32, height: u32, scale: f32, window: &crate::Window) -> Self
     {
         Self
         {
-            ctx: Default::default(),
+            state: egui_winit::State::new(egui::ViewportId::ROOT, window, Some(scale), None),
             renderer: egui_wgpu::Renderer::new
             (
                 crate::device(), wgpu::TextureFormat::Bgra8UnormSrgb, None, 1
@@ -46,26 +48,21 @@ impl Ui
 
     pub(crate) fn render<'a>
     (
-        &'a mut self, pass: &mut wgpu::RenderPass<'a>
+        &'a mut self, pass: &mut wgpu::RenderPass<'a>,
+        window: &crate::Window
     )
     {
         egui::Window::new("title")
-            .default_height(100.)
-            .frame(egui::Frame
-            {
-                fill: egui::Color32::from_rgb(10, 10, 10),
-                inner_margin: egui::Margin::same(3.),
-                rounding: egui::Rounding::ZERO.at_least(5.),
-                ..Default::default()
-            })
-            .show(&self.ctx, |ui| 
+            .show(&self.state.ctx, |ui| 
             {
                 ui.label(egui::RichText::new("Large text").font(egui::FontId::proportional(40.0)));
             });
 
-        let output = self.ctx.end_frame();
+        let output = self.state.ctx.end_frame();
+        
+        self.state.handle_platform_output(window, output.platform_output);
 
-        let clipped_primitives = &self.ctx.tessellate
+        let clipped_primitives = &self.state.ctx.tessellate
         (
             output.shapes, self.screen.scale
         );
@@ -93,9 +90,17 @@ impl Ui
         }
     }
 
-    pub fn begin_frame(&self, input: egui::RawInput)
+    pub fn begin_frame(&mut self, window: &crate::Window)
     {
-        self.ctx.begin_frame(input)
+        let input = self.state.take_egui_input(window);
+        self.state.ctx.begin_frame(input)
+    }
+
+    /// checks on input on the ui before passing it to the rest of the program 
+    /// if it's not consumed 
+    pub fn handle_input(&mut self, window: &crate::Window, event: &input::WindowEvent) -> egui_winit::EventResponse
+    {
+        self.state.on_window_event(window, event)
     }
 
     pub(crate) fn update_screen_size(&mut self, width: u32, height: u32)

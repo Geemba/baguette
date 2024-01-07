@@ -47,23 +47,11 @@ impl Application
 {
     pub fn check_input(&mut self, event: &WindowEvent)
     {
-        self.input.check(event);
-
-        let window = self.window();
-
-        let scale_factor = window.scale_factor();
-        let logical_size = window.inner_size().to_logical(scale_factor);
-
-        self.renderer.ui.begin_frame(ui::egui::RawInput
+        if !self.renderer.ui.handle_input(&self.renderer.window, event).consumed
         {
-            screen_rect: Some(ui::egui::Rect::from_min_size
-            (
-                Default::default(), ui::egui::Vec2::new(logical_size.width, logical_size.height)
-            )),
-            max_texture_side: Some(self.renderer.limits().max_texture_dimension_2d as usize),
-            time: None,
-            predicted_dt: 1./60.,
-            ..Default::default()
-        })
+            self.input.check(event);
+        }
+
+        self.renderer.ui.begin_frame(&self.renderer.window)
     }
 }

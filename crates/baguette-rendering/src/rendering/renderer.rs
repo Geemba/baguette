@@ -112,7 +112,7 @@ impl Renderer
                     render_pass.draw(&mut pass)?
                 }
             
-                self.ui.render(&mut pass);
+                self.ui.render(&mut pass, &self.window);
             }
         }
 
@@ -250,7 +250,7 @@ impl Renderer
         static_render_data::StaticData::init(instance, device, queue);
 
         // until we dont remove the static data the order we itialize matters
-        let ui = Ui::new(width,height,scale);
+        let ui = Ui::new(width,height,scale, &window);
 
         Self { adapter, passes: None, window, ui, output }
     }
