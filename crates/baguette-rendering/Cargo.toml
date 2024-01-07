@@ -6,15 +6,15 @@ license.workspace = true
 
 [dependencies]
 wgpu = "*"
-spin_sleep = "*"
+#spin_sleep = "*"
 pollster = "*"
 bytemuck = { version = "*", features = [ "derive" ]}
 image = { version = "*", features = ["png", "jpeg"]}
 baguette-math = { workspace = true }
 input = { workspace = true }
 once_cell = "*"
-raw-window-handle = "0.5.2"
-disjoint_impls = "*"
+#raw-window-handle = "0.5.2"
+#disjoint_impls = "*"
 
 egui = { version = "*", features = ["bytemuck",] }
 type-map = "*"
