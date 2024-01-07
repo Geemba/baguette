@@ -1,9 +1,10 @@
-<h1 align="center">
-  Baguette
-</h1>
-<h2 align="center">🥖🥖A freshly baked rust game engine 🥖🥖</h2></>
+<p align="center">
+  <img src="assets/baguette_logo_and_text.png" />
+
+<h2 align="center">🥖🥖A freshly baked rust game engine 🥖🥖</h2>
   
 <h4 align="center">note: this crate is being used for a game i'm working on, i will keep updating this engine as more content will eventually be required </h4>
+
 
 
 ## Roadmap
