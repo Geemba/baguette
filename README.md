@@ -11,7 +11,7 @@
 
 - [x] Input
     - [x] Keyboard
-    - [ ] Mouse
+    - [x] Mouse
     - [ ] Controller
           
 - [ ] Audio player
@@ -30,7 +30,9 @@
        - [x] SpriteSheet Animations
     - [x] Fullscreen
     - [x] Screen Resizing
-    - [x] Window Icon  
+    - [x] Window Icon
+        
+- [x] Egui integration
 
 - [ ] Coroutines
 - [ ] Tweening
