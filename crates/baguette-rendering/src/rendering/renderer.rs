@@ -97,10 +97,12 @@ impl Renderer
                             b: 0.85,
                             a: 1.0
                         }),
-                        store: true
+                        store: wgpu::StoreOp::Store
                     }
                 })],
-                depth_stencil_attachment: None
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None
             });
 
             if let Some(passes) = &self.passes 
@@ -146,10 +148,12 @@ impl Renderer
                 ops: wgpu::Operations
                 {
                     load: wgpu::LoadOp::Clear(wgpu::Color { r, g, b, a: 1. }),
-                    store: true
+                    store: wgpu::StoreOp::Store
                 }
             })],
-            depth_stencil_attachment: None
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None
         });
         
         queue().submit([encoder.finish()]);
@@ -523,10 +527,12 @@ impl FrameOutput
                     ops: wgpu::Operations
                     {
                         load: Default::default(),
-                        store: true
+                        store: wgpu::StoreOp::Store
                     }
                 })],
-                depth_stencil_attachment: None
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None
             }
         );
 
