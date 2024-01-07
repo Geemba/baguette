@@ -1,6 +1,7 @@
 // contains an integration of egui specifically for the baguette engine
 // this is mostly taken by the official wgpu integration
 
+#[allow(dead_code)]
 mod egui_wgpu;
 pub use egui;
 
@@ -69,7 +70,7 @@ impl Ui
             output.shapes, self.screen.scale
         );
 
-        for (id,ref delta) in output.textures_delta.set
+        for (id, ref delta) in output.textures_delta.set
         {
             self.renderer.update_texture(crate::device(), crate::queue(), id, delta)
         }
@@ -82,11 +83,6 @@ impl Ui
         );
 
         self.renderer.render(pass, clipped_primitives, &self.screen);
-        
-        //for ref id in output.textures_delta.free
-        //{
-        //   self.renderer.free_texture(id);
-        //}
     }
 
     pub fn free_textures(&mut self)
