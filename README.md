@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/baguette_logo_and_text.png" />
+  <img src="assets/baguette_logo_and_text.png" width="150"/>
 
 <h2 align="center">🥖🥖A rust baked game engine 🥖🥖</h2>
   
