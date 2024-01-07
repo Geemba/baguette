@@ -71,7 +71,7 @@ pub struct Tiles { index: usize, indices: Box<[u32]> }
 //    }
 //}
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct SheetSection
 {
     /// describes the layout of the sheet for bound checking
@@ -291,12 +291,7 @@ impl SpriteBinding
                     _instances.push(SpriteInstance
                     {
                         transform,
-                        section: SheetSection
-                        {
-                            layout: SpriteLayout{ rows: 1, columns: 1 },
-                            indices: None,
-                            index: 0
-                        }
+                        section: SheetSection::default()
                     })
                 }
 
@@ -342,7 +337,7 @@ impl SpriteBinding
             .decode()
             .expect("failed to decode image, unsupported format");
 
-        // if we need to rescale we need to rescale the dyn image and not this variable
+        // if we need to rescale we need to do it on the dyn image and not this variable
         // otherwhise we just crop the rendered texture
         let dimensions = Into::<baguette_math::UVec2>::into
         (
@@ -392,7 +387,7 @@ impl SpriteBinding
             size
         );
 
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let view = texture.create_view(&Default::default());
         let sampler = crate::create_sampler
         (
             wgpu::SamplerDescriptor
@@ -411,8 +406,8 @@ impl SpriteBinding
         // pixel per unit factor
         let scale = baguette_math::Vec2::new
         (
-            dimensions.x as f32 / pxunit,
-            dimensions.y as f32 / pxunit
+            (dimensions.x / layout.columns) as f32 / pxunit,
+            (dimensions.y / layout.rows) as f32 / pxunit
         );
 
         let vertices =
@@ -425,7 +420,13 @@ impl SpriteBinding
 
         let uvs =
         {
-            let mut uvs = Vec::with_capacity((layout.rows * layout.columns) as usize);
+            let mut uvs = Vec::with_capacity
+            (
+                (layout.rows * layout.columns) as usize
+            );
+            
+            let rows = layout.rows as f32;
+            let columns = layout.columns as f32;
 
             for i in 0..layout.rows * layout.columns 
             {
@@ -441,14 +442,12 @@ impl SpriteBinding
                         [1., 0.]
                     ];
 
+
                     let pos =
                     (
                         (i % layout.columns) as f32,
                         (i / layout.columns) as f32
                     );
-
-                    let rows = layout.rows as f32;
-                    let columns = layout.columns as f32;
 
                     // here we actually crop into the correct row and column
                     for uv in uvs.iter_mut()

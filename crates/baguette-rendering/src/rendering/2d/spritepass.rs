@@ -10,6 +10,26 @@ pub struct SpritePass
     camera_bind_group: &'static wgpu::BindGroup
 }
 
+impl Drop for SpritePass
+{
+    fn drop(&mut self)
+    {
+        for binding in self.buffers.iter_mut()
+        {
+            // this notifies the sprites 
+            // that the spritepass has been dropped,
+            // it is expected that this id value exists when dropping the spritepass
+            unsafe
+            {
+                binding.as_mut().id.take().expect
+                (
+                    "value should have been present in the moment of dropping the spritepass"
+                )
+            };
+        }
+    }
+}
+
 impl SpritePass
 {
     pub fn new(backface_culling: bool, cam: Option<&'static Camera>) -> Self
