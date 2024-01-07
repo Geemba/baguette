@@ -46,7 +46,7 @@ impl State for TestA
     {
         self.move_cam();
 
-        match self.time > 6
+        match self.time > 8
         {
             true =>
             {

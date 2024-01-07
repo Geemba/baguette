@@ -54,6 +54,7 @@ impl Ui
             {
                 fill: egui::Color32::from_rgb(10, 10, 10),
                 inner_margin: egui::Margin::same(3.),
+                rounding: egui::Rounding::ZERO.at_least(5.),
                 ..Default::default()
             })
             .show(&self.ctx, |ui| 

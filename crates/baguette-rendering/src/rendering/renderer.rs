@@ -1,5 +1,5 @@
-
 use crate::*;
+use input::winit::window::Window;
 
 pub struct Renderer
 {
@@ -15,18 +15,18 @@ pub struct Renderer
 // integration specific
 impl Renderer
 {
-    pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>)
+    pub fn resize(&mut self, (width,height): (u32,u32))
     {
-        config().width = u32::max(new_size.width, 1);
-        config().height = u32::max(new_size.height, 1);
+        config().width = u32::max(width, 1);
+        config().height = u32::max(height, 1);
 
         let (physical_width, physical_height) = 
         (
-            new_size.width as f32, new_size.height as f32
+            width as f32, height as f32
         );
         
-        self.ui.update_screen_size(new_size.width, new_size.height);
-        self.output.update_texture(device(), new_size.width, new_size.height);
+        self.ui.update_screen_size(width, height);
+        self.output.update_texture(device(), width, height);
 
         Camera::resize_all(physical_width / physical_height);
 

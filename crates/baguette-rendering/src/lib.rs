@@ -2,7 +2,6 @@
 
 pub use input::winit::window::Window;
 
-pub(crate) use input::*;
 pub(crate) use baguette_math::*;
 pub(crate) use renderer::static_render_data::*;
 

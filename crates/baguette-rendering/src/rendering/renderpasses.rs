@@ -2,6 +2,7 @@ pub use crate::*;
 
 pub enum Passes
 {
+    /// pass tasked with rendering sprites
     SpriteSheet(SpritePass),
 }
 

@@ -220,7 +220,7 @@ impl AppBuilder<UninitDynFsm>
                             WindowEvent::CloseRequested => target.exit(),
                             WindowEvent::Resized(new_size)if new_size.width > 0 && new_size.height > 0 =>
                             {
-                                app.renderer.resize(new_size)
+                                app.renderer.resize(new_size.into())
                             }
                             WindowEvent::Focused(value) => app.focused = value,
                             _ => ()
