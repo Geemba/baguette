@@ -97,7 +97,6 @@ impl State {
     /// Construct a new instance
     pub fn new(
         viewport_id: ViewportId,
-        display_target: &dyn winit::raw_window_handle::HasDisplayHandle,
         native_pixels_per_point: Option<f32>,
         max_texture_side: Option<usize>,
     ) -> Self {
@@ -158,25 +157,6 @@ impl State {
     /// that egui will use.
     pub fn set_max_texture_side(&mut self, max_texture_side: usize) {
         self.egui_input.max_texture_side = Some(max_texture_side);
-    }
-
-    #[inline]
-    pub fn egui_ctx(&self) -> &egui::Context {
-        &self.ctx
-    }
-
-    /// The current input state.
-    /// This is changed by [`Self::on_window_event`] and cleared by [`Self::take_egui_input`].
-    #[inline]
-    pub fn egui_input(&self) -> &egui::RawInput {
-        &self.egui_input
-    }
-
-    /// The current input state.
-    /// This is changed by [`Self::on_window_event`] and cleared by [`Self::take_egui_input`].
-    #[inline]
-    pub fn egui_input_mut(&mut self) -> &mut egui::RawInput {
-        &mut self.egui_input
     }
 
     /// Prepare for a new frame by extracting the accumulated input,
@@ -667,7 +647,7 @@ impl State {
 
         let pressed = *state == winit::event::ElementState::Pressed;
 
-        let physical_key = if let winit::keyboard::PhysicalKey::Code(keycode) = *physical_key {
+        let _physical_key = if let winit::keyboard::PhysicalKey::Code(keycode) = *physical_key {
             key_from_key_code(keycode)
         } else {
             None
@@ -724,11 +704,7 @@ impl State {
         let egui::PlatformOutput {
             cursor_icon,
             open_url,
-            copied_text,
-            events,
-            mutable_text_under_cursor,
-            text_cursor_pos,
-
+            ..
         } = platform_output;
 
         self.set_cursor_icon(window, cursor_icon);
@@ -914,8 +890,7 @@ fn translate_mouse_button(button: winit::event::MouseButton) -> Option<egui::Poi
 fn key_from_winit_key(key: &winit::keyboard::Key) -> Option<egui::Key> {
     match key {
         winit::keyboard::Key::Named(named_key) => key_from_named_key(*named_key),
-        winit::keyboard::Key::Character(str) => None,
-        winit::keyboard::Key::Unidentified(_) | winit::keyboard::Key::Dead(_) => None,
+        _ => None,
     }
 }
 
@@ -1152,9 +1127,7 @@ fn process_viewport_command(
             // TODO: check that the left mouse-button was pressed down recently,
             // or we will have bugs on Windows.
             // See https://github.com/emilk/egui/pull/1108
-            if is_viewport_focused {
-                if let Err(err) = window.drag_window() {
-                }
+            if is_viewport_focused && window.drag_window().is_err() {
             }
         }
         ViewportCommand::InnerSize(size) => {
@@ -1167,7 +1140,7 @@ fn process_viewport_command(
             }
         }
         ViewportCommand::BeginResize(direction) => {
-            if let Err(err) = window.drag_resize_window(match direction {
+            if window.drag_resize_window(match direction {
                 egui::viewport::ResizeDirection::North => ResizeDirection::North,
                 egui::viewport::ResizeDirection::South => ResizeDirection::South,
                 //egui::viewport::ResizeDirection::East => ResizeDirection::East,
@@ -1176,7 +1149,7 @@ fn process_viewport_command(
                 egui::viewport::ResizeDirection::SouthEast => ResizeDirection::SouthEast,
                 egui::viewport::ResizeDirection::NorthWest => ResizeDirection::NorthWest,
                 egui::viewport::ResizeDirection::SouthWest => ResizeDirection::SouthWest,
-            }) {
+            }).is_err() {
             }
         }
         ViewportCommand::Title(title) => {
@@ -1286,23 +1259,23 @@ fn process_viewport_command(
         }),
         ViewportCommand::ContentProtected(v) => window.set_content_protected(v),
         ViewportCommand::CursorPosition(pos) => {
-            if let Err(err) = window.set_cursor_position(PhysicalPosition::new(
+            if window.set_cursor_position(PhysicalPosition::new(
                 pixels_per_point * pos.x,
                 pixels_per_point * pos.y,
-            )) {
+            )).is_err() {
             }
         }
         ViewportCommand::CursorGrab(o) => {
-            if let Err(err) = window.set_cursor_grab(match o {
+            if window.set_cursor_grab(match o {
                 egui::viewport::CursorGrab::None => CursorGrabMode::None,
                 egui::viewport::CursorGrab::Confined => CursorGrabMode::Confined,
                 egui::viewport::CursorGrab::Locked => CursorGrabMode::Locked,
-            }) {
+            }).is_err() {
             }
         }
         ViewportCommand::CursorVisible(v) => window.set_cursor_visible(v),
         ViewportCommand::MousePassthrough(passthrough) => {
-            if let Err(err) = window.set_cursor_hittest(!passthrough) {
+            if window.set_cursor_hittest(!passthrough).is_err() {
             }
         }
         ViewportCommand::Screenshot => {
@@ -1482,7 +1455,7 @@ pub fn apply_viewport_builder_to_window(
     builder: &ViewportBuilder,
 ) {
     if let Some(mouse_passthrough) = builder.mouse_passthrough {
-        if let Err(err) = window.set_cursor_hittest(!mouse_passthrough) {
+        if let Err(_err) = window.set_cursor_hittest(!mouse_passthrough) {
         }
     }
 

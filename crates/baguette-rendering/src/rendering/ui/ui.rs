@@ -3,6 +3,7 @@
 
 #[allow(dead_code)]
 mod egui_wgpu;
+#[allow(dead_code)]
 mod egui_winit;
 
 pub use egui;
@@ -27,11 +28,11 @@ struct ScreenData
 
 impl Ui
 {
-    pub fn new(width: u32, height: u32, scale: f32, window: &crate::Window) -> Self
+    pub fn new(width: u32, height: u32, scale: f32) -> Self
     {
         Self
         {
-            state: egui_winit::State::new(egui::ViewportId::ROOT, window, Some(scale), None),
+            state: egui_winit::State::new(egui::ViewportId::ROOT, Some(scale), None),
             renderer: egui_wgpu::Renderer::new
             (
                 crate::device(), wgpu::TextureFormat::Bgra8UnormSrgb, None, 1
