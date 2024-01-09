@@ -1,38 +1,10 @@
-//! link crate of all the `baguette` component crates
+//! # Baguette engine
+//! 
+//! baguette aims to be a simple but performant engine for indie games,
+//! providing all the necessary tools to develop a game
 
 use app::*;
 use input::{*,winit::*};
-
-pub fn get_in_project_root(path : &str) -> String
-{
-    project_root() + path
-}
-
-/// returns the project root as string
-/// # Panics
-///
-/// panics if the path is not found.
-/// 
-/// todo: way better to keep as os string
-pub fn project_root() -> String
-{
-    project_root_path().unwrap().to_str().unwrap().to_owned()
-}
-
-pub fn project_root_path() -> std::io::Result<std::path::PathBuf> 
-{
-    for path in std::env::current_dir()?.as_path().ancestors()
-    {
-        if std::fs::read_dir(path)?.any
-        (
-            |p| p.unwrap().file_name() == *"Cargo.lock"
-        )
-        {
-            return Ok(std::path::PathBuf::from(path))
-        }
-    }
-    Err(std::io::Error::new(std::io::ErrorKind::NotFound, "Ran out of places to find Cargo.toml"))
-}
 
 pub type WindowTheme = window::Theme;
 
@@ -170,6 +142,7 @@ impl AppBuilder<UninitDynFsm>
         self
     }
     
+    /// run the loop, everything after this call will be unreachable
     pub fn run(self)
     {
         let application = async
