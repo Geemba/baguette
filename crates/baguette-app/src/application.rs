@@ -5,9 +5,6 @@ use crate::*;
 /// a dynamically dispatched fsm that has been initialized
 pub type InitDynFsm = dynamic::Fsm<dynamic::ActiveState>;
 
-/// a statically dispatched fsm that has been initialized
-pub type InitStaticFsm<T> = r#static::Fsm<r#static::ActiveState<T>,T>;
-
 pub struct Application
 {
     pub input: &'static mut input::Input,
