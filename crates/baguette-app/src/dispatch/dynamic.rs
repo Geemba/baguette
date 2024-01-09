@@ -14,9 +14,9 @@ type TransitionsCallback = fn() -> Vec<Transition>;
 
 pub trait State
 {
-    fn new(app : &'static mut Application) -> Self where Self : Sized;
+    fn new(app : &'static mut Application) -> Self where Self: Sized;
 
-    fn update(&mut self, event : &StateEvent);
+    fn update(&mut self, app: &mut Application, event: &StateEvent);
 
     fn id() -> StateId
     where
@@ -34,13 +34,13 @@ impl State for Empty
         Empty
     }
 
-    fn update(&mut self, _ : &StateEvent) {}
+    fn update(&mut self, _:&mut Application, _ : &StateEvent) {}
 }
 
 impl State for ()
 {
     fn new(_ : &mut Application) where Self : Sized {}
-    fn update(&mut self, _ : &StateEvent) {}
+    fn update(&mut self, _:&mut Application, _ : &StateEvent) {}
 }
 
 pub struct ActiveState
@@ -166,9 +166,9 @@ impl Fsm<UnactiveState>
 impl Fsm<ActiveState>
 {
     #[inline]
-    pub fn update(&mut self, app : &mut Application)
+    pub fn update(&mut self, app: &mut Application)
     {
-        self.current.state.update(&self.current.event);
+        self.current.state.update(app, &self.current.event);
 
         match &self.current.event
         {  

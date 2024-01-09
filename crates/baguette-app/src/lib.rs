@@ -1,7 +1,5 @@
 #[path ="dispatch/dynamic.rs"]
 pub mod dynamic;
-#[path ="dispatch/static.rs"]
-pub mod r#static;
 
 pub mod application;
 pub use application::*;
@@ -11,17 +9,17 @@ pub use dynamic::*;
 
 pub trait Dispatcher
 {
-    fn dispatch(&mut self, event : &StateEvent);
+    fn dispatch(&mut self, app: &mut Application, event: &StateEvent);
 }
 
-pub type DefaultDispatcher =  Box<dyn dynamic::State>;
+pub type DefaultDispatcher = Box<dyn dynamic::State>;
 
 
 impl Dispatcher for DefaultDispatcher
 {
-    fn dispatch(&mut self, event : &StateEvent)
+    fn dispatch(&mut self, app: &mut Application, event: &StateEvent)
     {
-        self.update(event)
+        self.update(app, event)
     }
 }
 

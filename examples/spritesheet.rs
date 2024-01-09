@@ -42,7 +42,7 @@ impl State for TestA
         }
     }
 
-    fn update(&mut self, _: &StateEvent)
+    fn update(&mut self, _: &mut Application, _: &StateEvent)
     {
         self.move_cam();
 
