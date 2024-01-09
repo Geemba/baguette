@@ -53,12 +53,6 @@ impl Ui
         window: &crate::Window
     )
     {
-        egui::Window::new("title")
-            .show(&self.state.ctx, |ui| 
-            {
-                ui.label(egui::RichText::new("Large text").font(egui::FontId::proportional(40.0)));
-            });
-
         let output = self.state.ctx.end_frame();
         
         self.state.handle_platform_output(window, output.platform_output);
