@@ -10,18 +10,16 @@ fn main()
 struct TestA
 {
     time: u8,
-    cam: &'static mut Camera,
     sprite: Sprite,
 }
 
 impl State for TestA
 {
-    fn new(app: &mut Application) -> Self where Self: Sized
+    fn new(app: &mut App) -> Self where Self: Sized
     {
         Self
         {
             time: 0,
-            cam: Camera::main_mut(),
             sprite: app.renderer.load_sprite
             (
                 SpriteLoader::SpriteSheet
@@ -31,7 +29,11 @@ impl State for TestA
                     instances: vec!
                     [
                         (
-                            Default::default(),
+                            Transform
+                            {
+                                translation: (0.,0.,1.).into(),
+                                ..Default::default()
+                            },
                             SheetTiles::RangeIn(19..=21)
                         )
                     ],
@@ -42,10 +44,8 @@ impl State for TestA
         }
     }
 
-    fn update(&mut self, _: &mut Application, _: &StateEvent)
+    fn update(&mut self, app: &mut App<'_>, _: &StateEvent)
     {
-        self.move_cam();
-
         match self.time > 8
         {
             true =>
@@ -58,29 +58,6 @@ impl State for TestA
                 self.time = 0
             }
             false => self.time += 1
-        }
-    }
-}
-
-impl TestA
-{
-    fn move_cam(&mut self)
-    {
-        if input::get_key_holding(input::KeyCode::KeyW)
-        {
-            self.cam.set_position(self.cam.position() + (math::Vec3::Z * -0.1))
-        }
-        if input::get_key_holding(input::KeyCode::KeyS)
-        {
-            self.cam.set_position(self.cam.position() + (math::Vec3::Z * 0.1))
-        }
-        if input::get_key_holding(input::KeyCode::KeyA)
-        {
-            self.cam.set_position(self.cam.position() + (math::Vec3::X * -0.1))
-        }
-        if input::get_key_holding(input::KeyCode::KeyD)
-        {
-            self.cam.set_position(self.cam.position() + (math::Vec3::X * 0.1))
         }
     }
 }
