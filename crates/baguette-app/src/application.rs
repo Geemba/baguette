@@ -36,12 +36,13 @@ impl AppHandler
 
     pub fn check_input(&mut self, event: &input::WindowEvent)
     {
+        // if egui doesn't consume this event, pass it to the rest of the program
         if !self.renderer.ui.handle_input(&self.renderer.window, event).consumed
         {
             self.input.check(event);
         }
 
-        self.renderer.ui.begin_egui_frame(&self.renderer.window)
+        //self.renderer.ui.begin_egui_frame(&self.renderer.window)
     }
 
     /// return a wrapper type that doesn't contain the engine critical methods 

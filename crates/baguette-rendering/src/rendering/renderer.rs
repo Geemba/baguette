@@ -225,6 +225,11 @@ impl RendererHandler
     {
         device().limits()
     }
+
+    pub fn begin_egui_frame(&mut self)
+    {
+        self.ui.begin_egui_frame(&self.window)
+    }
 }
 
 /// initialization

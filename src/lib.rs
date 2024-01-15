@@ -175,20 +175,26 @@ impl AppBuilder<UninitDynFsm>
                         {
                             WindowEvent::RedrawRequested if app.focused => 
                             {
+                                // begin gathering input before user update
+                                app.renderer.begin_egui_frame();
+
                                 fsm.update(app.to_user());
 
-                                match app.renderer.render()
+                                if let Some(err) = app.renderer.render().err()
                                 {
-                                    Ok(_) => app.renderer.post_render(),
-                                    // Reconfigure the surface if it's lost or outdated
-                                    Err(rendering::SurfaceError::Lost | rendering::SurfaceError::Outdated) => println!("surface lost or outdated, reconnecting"),
+                                    match err
+                                    {
+                                        // Reconfigure the surface if it's lost or outdated
+                                        rendering::SurfaceError::Lost | rendering::SurfaceError::Outdated => println!("surface lost or outdated, reconnecting"),
 
-                                    // The system is out of memory, we should probably quit
-                                    Err(rendering::SurfaceError::OutOfMemory) => target.exit(),
+                                        // The system is out of memory, we should probably quit
+                                        rendering::SurfaceError::OutOfMemory => target.exit(),
 
-                                    Err(rendering::SurfaceError::Timeout) => println!("surface timeout")
+                                        rendering::SurfaceError::Timeout => println!("surface timeout")
+                                    }
                                 }
-
+                                
+                                app.renderer.post_render();
                                 app.input.flush_released_keys()
                             }
                             

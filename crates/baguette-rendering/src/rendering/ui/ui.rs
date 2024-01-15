@@ -105,16 +105,9 @@ impl UiHandle
         self.renderer.render(pass, clipped_primitives, &self.screen);
     }
 
-    pub fn free_textures(&mut self)
+    pub fn begin_egui_frame(&mut self, window: &input::winit::window::Window)
     {
-        for id in self.tex_to_remove.drain(..)
-        {
-            self.renderer.free_texture(&id)
-        }
-    }
-
-    pub fn begin_egui_frame(&mut self, window: &crate::Window)
-    {
+        // prepare the gathered input
         self.state.update_viewport_info(window);
         let input = self.state.take_egui_input(window);
 
@@ -132,5 +125,13 @@ impl UiHandle
     {
         self.screen.width = width;
         self.screen.height = height;
+    }
+    
+    pub fn free_textures(&mut self)
+    {
+        for id in self.tex_to_remove.drain(..)
+        {
+            self.renderer.free_texture(&id)
+        }
     }
 }
