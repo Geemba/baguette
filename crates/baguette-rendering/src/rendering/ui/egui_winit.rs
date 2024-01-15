@@ -64,7 +64,7 @@ pub struct State {
 
     viewport_id: ViewportId,
     start_time: std::time::Instant,
-    egui_input: egui::RawInput,
+    input: egui::RawInput,
     pointer_pos_in_points: Option<egui::Pos2>,
     any_pointer_button_down: bool,
     current_cursor_icon: Option<egui::CursorIcon>,
@@ -96,7 +96,7 @@ impl State {
         max_texture_side: Option<usize>,
     ) -> Self {
 
-        let egui_input = egui::RawInput {
+        let input = egui::RawInput {
             focused: true, // winit will tell us when we have focus
             ..Default::default()
         };
@@ -105,7 +105,7 @@ impl State {
             ctx: Default::default(),
             viewport_id: egui::ViewportId::ROOT,
             start_time: std::time::Instant::now(),
-            egui_input,
+            input,
             pointer_pos_in_points: None,
             any_pointer_button_down: false,
             current_cursor_icon: None,
@@ -121,7 +121,7 @@ impl State {
             //allow_ime: false,
         };
 
-        this.egui_input
+        this.input
             .viewports
             .entry(ViewportId::ROOT)
             .or_default()
@@ -151,7 +151,7 @@ impl State {
     /// Call this once a graphics context has been created to update the maximum texture dimensions
     /// that egui will use.
     pub fn set_max_texture_side(&mut self, max_texture_side: usize) {
-        self.egui_input.max_texture_side = Some(max_texture_side);
+        self.input.max_texture_side = Some(max_texture_side);
     }
 
     /// Prepare for a new frame by extracting the accumulated input,
@@ -163,8 +163,8 @@ impl State {
     /// viewport.
     pub fn take_egui_input(&mut self, window: &Window) -> egui::RawInput {
 
-        self.egui_input.time = Some(self.start_time.elapsed().as_secs_f64());
-
+        self.input.time = Some(self.start_time.elapsed().as_secs_f64());
+        
         // On Windows, a minimized window will have 0 width and height.
         // See: https://github.com/rust-windowing/winit/issues/208
         // This solves an issue where egui window positions would be changed when minimizing on Windows.
@@ -172,20 +172,20 @@ impl State {
         let screen_size_in_points =
             screen_size_in_pixels / pixels_per_point(&self.ctx, window);
 
-        self.egui_input.screen_rect = (screen_size_in_points.x > 0.0
+        self.input.screen_rect = (screen_size_in_points.x > 0.0
             && screen_size_in_points.y > 0.0)
             .then(|| Rect::from_min_size(Pos2::ZERO, screen_size_in_points));
 
         // Tell egui which viewport is now active:
-        self.egui_input.viewport_id = self.viewport_id;
+        self.input.viewport_id = self.viewport_id;
 
-        self.egui_input
+        self.input
             .viewports
             .entry(self.viewport_id)
             .or_default()
             .native_pixels_per_point = Some(window.scale_factor() as f32);
 
-        self.egui_input.take()
+        self.input.take()
     }
 
     /// Call this when there is a new event.
@@ -207,7 +207,7 @@ impl State {
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 let native_pixels_per_point = *scale_factor as f32;
 
-                self.egui_input
+                self.input
                     .viewports
                     .entry(self.viewport_id)
                     .or_default()
@@ -241,7 +241,7 @@ impl State {
             }
             WindowEvent::CursorLeft { .. } => {
                 self.pointer_pos_in_points = None;
-                self.egui_input.events.push(egui::Event::PointerGone);
+                self.input.events.push(egui::Event::PointerGone);
                 EventResponse {
                     repaint: true,
                     consumed: false,
@@ -280,16 +280,16 @@ impl State {
                     winit::event::Ime::Enabled | winit::event::Ime::Disabled => (),
                     winit::event::Ime::Commit(text) => {
                         self.input_method_editor_started = false;
-                        self.egui_input
+                        self.input
                             .events
                             .push(egui::Event::CompositionEnd(text.clone()));
                     }
                     winit::event::Ime::Preedit(text, Some(_)) => {
                         if !self.input_method_editor_started {
                             self.input_method_editor_started = true;
-                            self.egui_input.events.push(egui::Event::CompositionStart);
+                            self.input.events.push(egui::Event::CompositionStart);
                         }
-                        self.egui_input
+                        self.input
                             .events
                             .push(egui::Event::CompositionUpdate(text.clone()));
                     }
@@ -313,11 +313,11 @@ impl State {
                 }
             }
             WindowEvent::Focused(focused) => {
-                self.egui_input.focused = *focused;
+                self.input.focused = *focused;
                 // We will not be given a KeyboardInput event when the modifiers are released while
                 // the window does not have focus. Unset all modifier state to be safe.
-                self.egui_input.modifiers = egui::Modifiers::default();
-                self.egui_input
+                self.input.modifiers = egui::Modifiers::default();
+                self.input
                     .events
                     .push(egui::Event::WindowFocused(*focused));
                 EventResponse {
@@ -326,7 +326,7 @@ impl State {
                 }
             }
             WindowEvent::HoveredFile(path) => {
-                self.egui_input.hovered_files.push(egui::HoveredFile {
+                self.input.hovered_files.push(egui::HoveredFile {
                     path: Some(path.clone()),
                     ..Default::default()
                 });
@@ -336,15 +336,15 @@ impl State {
                 }
             }
             WindowEvent::HoveredFileCancelled => {
-                self.egui_input.hovered_files.clear();
+                self.input.hovered_files.clear();
                 EventResponse {
                     repaint: true,
                     consumed: false,
                 }
             }
             WindowEvent::DroppedFile(path) => {
-                self.egui_input.hovered_files.clear();
-                self.egui_input.dropped_files.push(egui::DroppedFile {
+                self.input.hovered_files.clear();
+                self.input.dropped_files.push(egui::DroppedFile {
                     path: Some(path.clone()),
                     ..Default::default()
                 });
@@ -361,11 +361,11 @@ impl State {
                 let shift = state.shift_key();
                 let super_ = state.super_key();
 
-                self.egui_input.modifiers.alt = alt;
-                self.egui_input.modifiers.ctrl = ctrl;
-                self.egui_input.modifiers.shift = shift;
-                self.egui_input.modifiers.mac_cmd = cfg!(target_os = "macos") && super_;
-                self.egui_input.modifiers.command = if cfg!(target_os = "macos") {
+                self.input.modifiers.alt = alt;
+                self.input.modifiers.ctrl = ctrl;
+                self.input.modifiers.shift = shift;
+                self.input.modifiers.mac_cmd = cfg!(target_os = "macos") && super_;
+                self.input.modifiers.command = if cfg!(target_os = "macos") {
                     super_
                 } else {
                     ctrl
@@ -404,7 +404,7 @@ impl State {
                 // Positive delta values indicate magnification (zooming in).
                 // Negative delta values indicate shrinking (zooming out).
                 let zoom_factor = (*delta as f32).exp();
-                self.egui_input.events.push(egui::Event::Zoom(zoom_factor));
+                self.input.events.push(egui::Event::Zoom(zoom_factor));
                 EventResponse {
                     repaint: true,
                     consumed: self.ctx.wants_pointer_input(),
@@ -436,12 +436,12 @@ impl State {
             {
                 let pressed = state == winit::event::ElementState::Pressed;
 
-                self.egui_input.events.push(egui::Event::PointerButton
+                self.input.events.push(egui::Event::PointerButton
                 {
                     pos,
                     button,
                     pressed,
-                    modifiers: self.egui_input.modifiers
+                    modifiers: self.input.modifiers
                 });
 
                 if self.simulate_touch_screen
@@ -450,7 +450,7 @@ impl State {
                     {
                         self.any_pointer_button_down = true;
 
-                        self.egui_input.events.push(egui::Event::Touch
+                        self.input.events.push(egui::Event::Touch
                         {
                             device_id: egui::TouchDeviceId(0),
                             id: egui::TouchId(0),
@@ -461,9 +461,9 @@ impl State {
                     } else {
                         self.any_pointer_button_down = false;
 
-                        self.egui_input.events.push(egui::Event::PointerGone);
+                        self.input.events.push(egui::Event::PointerGone);
 
-                        self.egui_input.events.push(egui::Event::Touch
+                        self.input.events.push(egui::Event::Touch
                         {
                             device_id: egui::TouchDeviceId(0),
                             id: egui::TouchId(0),
@@ -492,11 +492,11 @@ impl State {
 
         if self.simulate_touch_screen {
             if self.any_pointer_button_down {
-                self.egui_input
+                self.input
                     .events
                     .push(egui::Event::PointerMoved(pos_in_points));
 
-                self.egui_input.events.push(egui::Event::Touch {
+                self.input.events.push(egui::Event::Touch {
                     device_id: egui::TouchDeviceId(0),
                     id: egui::TouchId(0),
                     phase: egui::TouchPhase::Move,
@@ -505,7 +505,7 @@ impl State {
                 });
             }
         } else {
-            self.egui_input
+            self.input
                 .events
                 .push(egui::Event::PointerMoved(pos_in_points));
         }
@@ -515,7 +515,7 @@ impl State {
         let pixels_per_point = pixels_per_point(&self.ctx, window);
 
         // Emit touch event
-        self.egui_input.events.push(egui::Event::Touch {
+        self.input.events.push(egui::Event::Touch {
             device_id: egui::TouchDeviceId(egui::epaint::util::hash(touch.device_id)),
             id: egui::TouchId::from(touch.id),
             phase: match touch.phase {
@@ -564,12 +564,12 @@ impl State {
                     // The pointer should vanish completely to not get any
                     // hover effects
                     self.pointer_pos_in_points = None;
-                    self.egui_input.events.push(egui::Event::PointerGone);
+                    self.input.events.push(egui::Event::PointerGone);
                 }
                 winit::event::TouchPhase::Cancelled => {
                     self.pointer_touch_id = None;
                     self.pointer_pos_in_points = None;
-                    self.egui_input.events.push(egui::Event::PointerGone);
+                    self.input.events.push(egui::Event::PointerGone);
                 }
             }
         }
@@ -591,8 +591,8 @@ impl State {
                     egui::vec2(x as f32, y as f32) / pixels_per_point,
                 ),
             };
-            let modifiers = self.egui_input.modifiers;
-            self.egui_input.events.push(egui::Event::MouseWheel {
+            let modifiers = self.input.modifiers;
+            self.input.events.push(egui::Event::MouseWheel {
                 unit,
                 delta,
                 modifiers,
@@ -608,18 +608,18 @@ impl State {
             }
         };
 
-        if self.egui_input.modifiers.ctrl || self.egui_input.modifiers.command {
+        if self.input.modifiers.ctrl || self.input.modifiers.command {
             // Treat as zoom instead:
             let factor = (delta.y / 200.0).exp();
-            self.egui_input.events.push(egui::Event::Zoom(factor));
-        } else if self.egui_input.modifiers.shift {
+            self.input.events.push(egui::Event::Zoom(factor));
+        } else if self.input.modifiers.shift {
             // Treat as horizontal scrolling.
             // Note: one Mac we already get horizontal scroll events when shift is down.
-            self.egui_input
+            self.input
                 .events
                 .push(egui::Event::Scroll(egui::vec2(delta.x + delta.y, 0.0)));
         } else {
-            self.egui_input.events.push(egui::Event::Scroll(delta));
+            self.input.events.push(egui::Event::Scroll(delta));
         }
     }
 
@@ -661,11 +661,11 @@ impl State {
 
         if let Some(logical_key) = logical_key {
 
-            self.egui_input.events.push(egui::Event::Key {
+            self.input.events.push(egui::Event::Key {
                 key: logical_key,
                 pressed,
                 repeat: false, // egui will fill this in for us!
-                modifiers: self.egui_input.modifiers,
+                modifiers: self.input.modifiers,
             });
         }
 
@@ -677,11 +677,11 @@ impl State {
                 // We need to ignore these characters that are side-effects of commands.
                 // Also make sure the key is pressed (not released). On Linux, text might
                 // contain some data even when the key is released.
-                let is_cmd = self.egui_input.modifiers.ctrl
-                    || self.egui_input.modifiers.command
-                    || self.egui_input.modifiers.mac_cmd;
+                let is_cmd = self.input.modifiers.ctrl
+                    || self.input.modifiers.command
+                    || self.input.modifiers.mac_cmd;
                 if pressed && !is_cmd {
-                    self.egui_input
+                    self.input
                         .events
                         .push(egui::Event::Text(text.to_string()));
                 }
@@ -755,9 +755,9 @@ impl State {
     {
         let pixels_per_point = pixels_per_point(&self.ctx, window);
 
-        let viewport_info = self.egui_input.viewports.get_mut
+        let viewport_info = self.input.viewports.get_mut
         (
-            &self.egui_input.viewport_id
+            &self.input.viewport_id
         ).expect("attempted to access viewport info with incorect id");
 
         let has_a_position = match window.is_minimized() {
@@ -866,7 +866,7 @@ impl State {
     
         let pixels_per_point = pixels_per_point(&self.ctx, window);
         
-        let input = &mut self.egui_input;
+        let input = &mut self.input;
         
         let info = input.viewports.get_mut(&input.viewport_id).unwrap(); 
 
@@ -910,7 +910,7 @@ impl State {
                 }
             }
             ViewportCommand::Title(title) => {
-                window.set_title(&title);
+                window.set_title(title);
             }
             ViewportCommand::Transparent(v) => window.set_transparent(*v),
             ViewportCommand::Visible(v) => window.set_visible(*v),

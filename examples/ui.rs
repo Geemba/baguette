@@ -51,7 +51,6 @@ impl State for TestA
                 
                 if button.clicked()
                 {
-                    println!("waaa");
                     ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                 }
 
