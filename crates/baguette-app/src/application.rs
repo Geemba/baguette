@@ -1,28 +1,23 @@
-use input::WindowEvent;
 
-use crate::*;
-
-/// a dynamically dispatched fsm that has been initialized
-pub type InitDynFsm = dynamic::Fsm<dynamic::ActiveState>;
-
-pub struct Application
+/// this is handled by the engine
+pub struct AppHandler
 {
-    pub input: &'static mut input::Input,
+    pub input: input::InputHandler,
     /// the application's renderer tasked with drawing to the screen
-    pub renderer: rendering::Renderer,
+    pub renderer: rendering::RendererHandler,
     /// is the window focused
-    pub focused: bool,
+    pub focused: bool
 }
 
-impl Application
+impl AppHandler
 {
     pub fn new(window: rendering::Window) -> Self
     {
         Self
         {
-            input: input::Input::init(),
-            renderer: rendering::Renderer::new(window),
-            focused: true,
+            input: Default::default(),
+            renderer: rendering::RendererHandler::new(window),
+            focused: true
         }
     }
 
@@ -38,17 +33,45 @@ impl Application
     {
         &mut self.renderer.window
     }
-}
 
-impl Application
-{
-    pub fn check_input(&mut self, event: &WindowEvent)
+    pub fn check_input(&mut self, event: &input::WindowEvent)
     {
         if !self.renderer.ui.handle_input(&self.renderer.window, event).consumed
         {
             self.input.check(event);
         }
 
-        self.renderer.ui.begin_frame(&self.renderer.window)
+        self.renderer.ui.begin_egui_frame(&self.renderer.window)
+    }
+
+    /// return a wrapper type that doesn't contain the engine critical methods 
+    pub fn to_user(&mut self) -> App
+    {
+        App
+        {
+            input: (&mut self.input).into(),
+            renderer: (&mut self.renderer).into(),
+        }
+    }
+}
+
+pub struct App<'a>
+{
+    pub input: input::Input<'a>,
+    /// the application's renderer tasked with drawing to the screen
+    pub renderer: rendering::Renderer<'a>,
+}
+
+impl<'a> App<'a>
+{
+    pub fn ui(&self) -> rendering::Ui
+    {
+        self.renderer.ui()
+    }
+
+    /// closes the program 
+    pub fn close(&mut self)
+    {
+        self.ui().context().send_viewport_cmd(rendering::egui::ViewportCommand::Close)
     }
 }
