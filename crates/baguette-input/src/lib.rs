@@ -8,95 +8,9 @@ pub use winit::keyboard::KeyCode;
 
 pub use winit;
 
-pub static mut INPUT: once_cell::sync::OnceCell<Input> = once_cell::sync::OnceCell::new();
-
-/// returns `true` the first frame the key is pressed
-/// 
-/// use [get_key_holding] to check if the key is pressed in the current frame
-pub fn get_key_down(keycode: KeyCode) -> bool
-{
-    unsafe { INPUT.get_mut().unwrap().get_key_down(keycode) }
-}
-
-/// returns `true` if the key is pressed in the current frame
-pub fn get_key_holding(keycode: KeyCode) -> bool
-{
-    unsafe { INPUT.get_mut().unwrap().get_key_holding(keycode) }
-}
-
-/// returns `true` when the key is released
-/// 
-/// use [get_key_holding] to check if the key is pressed in the current frame
-pub fn get_key_up(keycode: KeyCode) -> bool
-{
-    unsafe { INPUT.get_mut().unwrap().get_key_up(keycode) }
-}
-
-pub fn get_mouse_button_down(button: MouseButton) -> bool
-{
-    unsafe { INPUT.get_mut().unwrap().get_mouse_button_down(button) } 
-}
-
-pub fn get_mouse_button_holding(button: MouseButton) -> bool
-{
-    unsafe { INPUT.get().unwrap().get_mouse_button_holding(button) } 
-}
-
-pub fn get_mouse_button_up(button: MouseButton) -> bool
-{
-    unsafe { INPUT.get().unwrap().get_mouse_button_up(button) } 
-}
-
-pub fn input_axis() -> baguette_math::Vec2
-{
-    baguette_math::Vec2::new(horizontal_axis(), vertical_axis())
-}
-
-
-pub fn mouse_position() -> baguette_math::Vec2
-{
-    unsafe { INPUT.get_mut().unwrap().mouse_position() } 
-}
-
-pub fn horizontal_axis() -> f32
-{
-    let mut x = 0.;
-
-    x -= match get_key_holding(KeyCode::KeyA)
-    {
-        true => 1.,
-        false => 0.
-    };
-    x += match get_key_holding(KeyCode::KeyD)
-    {
-        true => 1.,
-        false => 0.
-    };
-
-    x
-}
-
-pub fn vertical_axis() -> f32
-{
-    let mut y = 0.;
-
-    y -= match get_key_holding(KeyCode::KeyW)
-    {
-        true => 1.,
-        false => 0.
-    };
-    y += match get_key_holding(KeyCode::KeyS)
-    {
-        true => 1.,
-        false => 0.
-    };
-
-    y
-}
-
 #[derive(Default)]
-/// the input system of the engine
-pub struct Input
+/// the input system of the engine, this is managed by the engine
+pub struct InputHandler
 {
     current_pressed_keys: ahash::AHashMap<PhysicalKey, InputState>,
     pressed_mouse_buttons: ahash::AHashMap<MouseButton, InputState>,
@@ -110,18 +24,8 @@ struct InputState
     released: bool
 }
 
-impl Input
+impl InputHandler
 {
-    /// initialized the input checker or returns a reference to it
-    pub fn init() -> &'static mut Self
-    {
-        unsafe 
-        {         
-            INPUT.get_or_init(Self::default);
-            INPUT.get_mut().unwrap()
-        }
-    }
-
     #[inline]
     pub fn check(&mut self, event: &WindowEvent)
     {    
@@ -194,13 +98,30 @@ impl Input
     }
 }
 
+pub struct Input<'a>
+{
+    handler: &'a mut InputHandler
+}
+
+impl<'a> From<&'a mut InputHandler> for Input<'a>
+{
+    fn from(handler: &'a mut InputHandler) -> Self
+    {
+        Self
+        {
+            handler,
+        }
+    }
+}
+
+
 // keys
-impl Input
+impl Input<'_>
 {
     /// returns true the first frame the button is pressed,
-    pub fn get_key_down(&mut self, keycode : KeyCode) -> bool
+    pub fn get_key_down(&mut self, keycode: KeyCode) -> bool
     {
-        let state = self.current_pressed_keys.get_mut(&PhysicalKey::Code(keycode));
+        let state = self.handler.current_pressed_keys.get_mut(&PhysicalKey::Code(keycode));
 
         match state
         {
@@ -219,27 +140,70 @@ impl Input
     /// returns true if the key is being pressed
     pub fn get_key_holding(&self, keycode: KeyCode) -> bool
     {
-        self.current_pressed_keys.get(&PhysicalKey::Code(keycode)).is_some()
+        self.handler.current_pressed_keys.get(&PhysicalKey::Code(keycode)).is_some()
     }
 
     /// returns true the frame the key is released
     pub fn get_key_up(&self, keycode: KeyCode) -> bool
     {
-        match self.current_pressed_keys.get(&PhysicalKey::Code(keycode))
+        match self.handler.current_pressed_keys.get(&PhysicalKey::Code(keycode))
         {
             Some(state) => state.released,
             None => false
         }
     }
+
+    /// the horizontal input axis, can be anything between -1 and 1
+    pub fn horizontal_axis(&self) -> f32
+    {
+        let mut x = 0.;
+
+        x -= match self.get_key_holding(KeyCode::KeyA)
+        {
+            true => 1.,
+            false => 0.
+        };
+        x += match self.get_key_holding(KeyCode::KeyD)
+        {
+            true => 1.,
+            false => 0.
+        };
+
+        x
+    }
+
+    /// the vertical input axis, can be anything between -1 and 1
+    pub fn vertical_axis(&self) -> f32
+    {
+        let mut y = 0.;
+
+        y -= match self.get_key_holding(KeyCode::KeyW)
+        {
+            true => 1.,
+            false => 0.
+        };
+        y += match self.get_key_holding(KeyCode::KeyS)
+        {
+            true => 1.,
+            false => 0.
+        };
+
+        y
+    }
+
+    pub fn input_axis(&self) -> baguette_math::Vec2
+    {
+        baguette_math::Vec2::new(self.horizontal_axis(), self.vertical_axis())
+    }
 }
 
 // mouse
-impl Input
+impl Input<'_>
 {
     // returns true the first frame the mouse button is pressed
     pub fn get_mouse_button_down(&mut self, click: MouseButton) -> bool
     {
-        let state = self.pressed_mouse_buttons.get_mut(&click);
+        let state = self.handler.pressed_mouse_buttons.get_mut(&click);
 
         match state
         {
@@ -257,62 +221,20 @@ impl Input
 
     pub fn get_mouse_button_holding(&self, click: MouseButton) -> bool
     {
-        self.pressed_mouse_buttons.get(&click).is_some()
+        self.handler.pressed_mouse_buttons.get(&click).is_some()
     }
 
     pub fn get_mouse_button_up(&self, click: MouseButton) -> bool
     {
-        match self.pressed_mouse_buttons.get(&click)
+        match self.handler.pressed_mouse_buttons.get(&click)
         {
             Some(input) => input.released,
             None => false
         }  
     }
     
-    fn mouse_position(&self) -> baguette_math::Vec2
+    pub fn mouse_position(&self) -> baguette_math::Vec2
     {
-        self.cursor_position
+        self.handler.cursor_position
     }
 }
-
-//pub struct Callback<T:'static + Copy>
-//{
-//    listeners: Vec<&'static mut dyn CallbackListener<T>>
-//}
-//
-//impl<T: 'static + Copy> Default for Callback<T> 
-//{
-//    fn default() -> Self 
-//    {
-//        Self { listeners : vec![] }
-//    }
-//}
-//
-//impl<T: Copy> core::ops::AddAssign<&mut dyn CallbackListener<T>> for &mut Callback<T>
-//{
-//    fn add_assign(&mut self, callback: &mut dyn CallbackListener<T>)
-//    {
-//        self.add_listener(callback)
-//    }
-//}
-//
-//impl<T: Copy> Callback<T>
-//{
-//    pub fn add_listener(&mut self, callback: &mut dyn CallbackListener<T>)
-//    {
-//        self.listeners.push(unsafe { core::mem::transmute(callback) });
-//    }
-//
-//    pub fn invoke(&mut self, param : T)
-//    {
-//        for listener in self.listeners.iter_mut()
-//        {
-//            listener.callback_listener(param)
-//        }
-//    }
-//}
-//
-//pub trait CallbackListener<ParamType>
-//{
-//    fn callback_listener(&mut self, t : ParamType);
-//}
