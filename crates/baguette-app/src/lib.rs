@@ -9,7 +9,7 @@ pub use dynamic::*;
 
 pub trait Dispatcher
 {
-    fn dispatch(&mut self, app: &mut Application, event: &StateEvent);
+    fn dispatch(&mut self, app: &mut App, event: &StateEvent);
 }
 
 pub type DefaultDispatcher = Box<dyn dynamic::State>;
@@ -17,7 +17,7 @@ pub type DefaultDispatcher = Box<dyn dynamic::State>;
 
 impl Dispatcher for DefaultDispatcher
 {
-    fn dispatch(&mut self, app: &mut Application, event: &StateEvent)
+    fn dispatch(&mut self, app: &mut App, event: &StateEvent)
     {
         self.update(app, event)
     }

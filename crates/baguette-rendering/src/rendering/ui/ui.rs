@@ -8,8 +8,29 @@ mod egui_winit;
 
 pub use egui;
 
+pub struct Ui<'a>
+{
+    handle: &'a UiHandle
+}
+
+impl Ui<'_>
+{
+    pub fn context(&self) -> &egui::Context
+    {
+        &self.handle.state.ctx
+    }
+}
+
+impl<'a> From<&'a UiHandle> for Ui<'a>
+{
+    fn from(handle: &'a UiHandle) -> Self
+    {
+        Self { handle }
+    }
+}
+
 /// Ui renderer
-pub struct Ui
+pub struct UiHandle
 {
     state: egui_winit::State,
     renderer: egui_wgpu::Renderer,
@@ -26,13 +47,13 @@ struct ScreenData
     scale: f32
 }
 
-impl Ui
+impl UiHandle
 {
     pub fn new(width: u32, height: u32, scale: f32) -> Self
     {
         Self
         {
-            state: egui_winit::State::new(egui::ViewportId::ROOT, Some(scale), None),
+            state: egui_winit::State::new(Some(scale), None),
             renderer: egui_wgpu::Renderer::new
             (
                 crate::device(), wgpu::TextureFormat::Bgra8UnormSrgb, None, 1
@@ -53,15 +74,22 @@ impl Ui
         window: &crate::Window
     )
     {
-        let output = self.state.ctx.end_frame();
-        
+        let id = &self.state.ctx.viewport_id();
+        let mut output = self.state.ctx.end_frame();
+
+        let commands = &output.viewport_output
+            .get_mut(id)
+            .expect("the context's viewport id didn't match any actual viewport")
+            .commands;
+
+        self.state.process_viewport_commands(commands, window);
+
         self.state.handle_platform_output(window, output.platform_output);
 
         let clipped_primitives = &self.state.ctx.tessellate
         (
             output.shapes, self.screen.scale
         );
-
         for (id, ref delta) in output.textures_delta.set
         {
             self.renderer.update_texture(crate::device(), crate::queue(), id, delta)
@@ -79,20 +107,22 @@ impl Ui
 
     pub fn free_textures(&mut self)
     {
-        for id in &self.tex_to_remove
+        for id in self.tex_to_remove.drain(..)
         {
-            self.renderer.free_texture(id)
+            self.renderer.free_texture(&id)
         }
     }
 
-    pub fn begin_frame(&mut self, window: &crate::Window)
+    pub fn begin_egui_frame(&mut self, window: &crate::Window)
     {
+        self.state.update_viewport_info(window);
         let input = self.state.take_egui_input(window);
+
         self.state.ctx.begin_frame(input)
     }
 
-    /// checks on input on the ui before passing it to the rest of the program 
-    /// if it's not consumed 
+    /// checks on input on the ui and passes it
+    /// to the rest of the program if it's not consumed 
     pub fn handle_input(&mut self, window: &crate::Window, event: &input::WindowEvent) -> egui_winit::EventResponse
     {
         self.state.on_window_event(window, event)

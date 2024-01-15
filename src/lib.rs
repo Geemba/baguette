@@ -30,7 +30,7 @@ enum FsmState
 
 impl FsmState
 {
-     fn build(&mut self, app: &mut Application)
+    fn build(&mut self, app: &mut App)
     {
         *self = match core::mem::replace(self, Self::Dummy)
         {
@@ -41,11 +41,11 @@ impl FsmState
     }
 
     #[inline]
-    fn update(&mut self, app: &mut Application)
+    fn update(&mut self, mut app: App)
     {
         if let FsmState::Active(fsm) = self 
         {
-            fsm.update(app)
+            fsm.update(&mut app)
         }
     }
 }
@@ -136,6 +136,7 @@ impl AppBuilder<UninitDynFsm>
     }
 
     /// adds a non exiting loop to execute, use [add_state]
+    /// to specify a transition condition to another existing state
     pub fn add_loop<St: dynamic::State + 'static>(mut self) -> Self
     {
         self.fsm.add_state::<St>(Vec::new);
@@ -149,14 +150,15 @@ impl AppBuilder<UninitDynFsm>
         {
             let eventloop = event_loop::EventLoopBuilder::default().build().unwrap();
 
-            let mut app = Application::new
+            let mut app = AppHandler::new
             (
                 self.wbuilder
                     .build(&eventloop)
                     .expect("window creation has failed")
             );
 
-            //we need to reach event::resumed before building the fsm
+            // we should not start our states until event::resumed is invoked,
+            // because our renderer is not initialized until that event,
             let mut fsm = FsmState::Unactive(self.fsm);
 
             eventloop.run
@@ -173,7 +175,7 @@ impl AppBuilder<UninitDynFsm>
                         {
                             WindowEvent::RedrawRequested if app.focused => 
                             {
-                                fsm.update(&mut app);
+                                fsm.update(app.to_user());
 
                                 match app.renderer.render()
                                 {
@@ -191,7 +193,7 @@ impl AppBuilder<UninitDynFsm>
                             }
                             
                             WindowEvent::CloseRequested => target.exit(),
-                            WindowEvent::Resized(new_size)if new_size.width > 0 && new_size.height > 0 =>
+                            WindowEvent::Resized(new_size) if new_size.width > 0 && new_size.height > 0 =>
                             {
                                 app.renderer.resize(new_size.into())
                             }
@@ -199,7 +201,7 @@ impl AppBuilder<UninitDynFsm>
                             _ => ()
                         }
 
-                        Application::window(&app).request_redraw()
+                        AppHandler::window(&app).request_redraw()
                     }
 
                     Event::LoopExiting => (/* program exit */),
@@ -207,7 +209,7 @@ impl AppBuilder<UninitDynFsm>
                     Event::Resumed =>
                     {
                         app.renderer.resume();
-                        fsm.build(&mut app)
+                        fsm.build(&mut app.to_user())
                     }
                     Event::Suspended =>
                     {

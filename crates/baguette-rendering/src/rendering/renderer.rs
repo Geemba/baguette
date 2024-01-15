@@ -1,10 +1,44 @@
 use crate::*;
 use input::winit::window::Window;
 
-pub struct Renderer
+pub struct Renderer<'a>
+{
+    handle: &'a mut RendererHandler
+}
+
+impl<'a> From<&'a mut RendererHandler> for Renderer<'a> 
+{
+    fn from(handle: &'a mut RendererHandler) -> Self
+    {
+        Self
+        {
+            handle
+        }
+    }
+}
+
+impl Renderer<'_>
+{
+    pub fn ui(&self) -> Ui
+    {
+        (&self.handle.ui).into()
+    }
+
+    /// loads a sprite to be rendered,
+    /// uses a builder type to describe how the sprite will be loaded
+    pub fn load_sprite<T>(&mut self, sprite: SpriteLoader<T>) -> Sprite
+        where
+            T: Into<std::ffi::OsString> + AsRef<std::path::Path>
+    {
+        self.handle.get_or_insert_pass::<SpritePass>().add(sprite)
+    }
+}
+
+/// this is handled by the engine
+pub struct RendererHandler
 {
     pub window: Window,
-    pub ui: ui::Ui,
+    pub ui: ui::UiHandle,
 
     output: FrameOutput,
 
@@ -13,12 +47,12 @@ pub struct Renderer
 }
 
 // integration specific
-impl Renderer
+impl RendererHandler
 {
     pub fn resize(&mut self, (width,height): (u32,u32))
     {
-        config().width = u32::max(width, 1);
-        config().height = u32::max(height, 1);
+        config().width = width;
+        config().height = height;
 
         let (physical_width, physical_height) = 
         (
@@ -193,20 +227,8 @@ impl Renderer
     }
 }
 
-/// 2d specific
-impl Renderer
-{
-    /// loads a sprite to be rendered
-    pub fn load_sprite<T>(&mut self, sprite: SpriteLoader<T>) -> Sprite
-        where
-            T: Into<std::ffi::OsString> + AsRef<std::path::Path>
-    {
-        self.get_or_insert_pass::<SpritePass>().add(sprite)
-    }
-}
-
 /// initialization
-impl Renderer
+impl RendererHandler
 {
     /// Creates a new [`Renderer`].
     ///
@@ -250,7 +272,7 @@ impl Renderer
         static_render_data::StaticData::init(instance, device, queue);
 
         // until we dont remove the static data the order we itialize matters
-        let ui = Ui::new(width,height,scale);
+        let ui = UiHandle::new(width,height,scale);
 
         Self { adapter, passes: None, window, ui, output }
     }

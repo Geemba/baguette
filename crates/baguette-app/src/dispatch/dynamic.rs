@@ -8,15 +8,15 @@ pub type Transition = (fn(&DispatchedState) -> bool, StateId);
 /// how the state type is dispatched 
 type DispatchedState = Box<dyn State>;
 /// a function pointer that returns the state concrete type
-type StateReturnCallback = fn(&mut Application) -> DispatchedState;
+type StateReturnCallback = fn(&mut App) -> DispatchedState;
 /// a function pointer that returns a vec containing all the possible transitions
 type TransitionsCallback = fn() -> Vec<Transition>;
 
 pub trait State
 {
-    fn new(app : &'static mut Application) -> Self where Self: Sized;
+    fn new(app : &'static mut App) -> Self where Self: Sized;
 
-    fn update(&mut self, app: &mut Application, event: &StateEvent);
+    fn update(&mut self, app: &mut App, event: &StateEvent);
 
     fn id() -> StateId
     where
@@ -29,18 +29,18 @@ pub trait State
 /// an empty state to use as default
 impl State for Empty
 {
-    fn new(_ : &mut Application) -> Self where Self : Sized
+    fn new(_ : &mut App) -> Self where Self : Sized
     {
         Empty
     }
 
-    fn update(&mut self, _:&mut Application, _ : &StateEvent) {}
+    fn update(&mut self, _:&mut App, _ : &StateEvent) {}
 }
 
 impl State for ()
 {
-    fn new(_ : &mut Application) where Self : Sized {}
-    fn update(&mut self, _:&mut Application, _ : &StateEvent) {}
+    fn new(_ : &mut App) where Self : Sized {}
+    fn update(&mut self, _:&mut App, _ : &StateEvent) {}
 }
 
 pub struct ActiveState
@@ -72,15 +72,15 @@ impl ActiveState
 /// unactive states holds data to be able to reactivate itself
 pub struct UnactiveState
 {
-    id : StateId,
-    state : fn(&mut Application) -> DispatchedState,
-    transitions : fn() -> Vec<Transition>
+    id: StateId,
+    state: fn(&mut App) -> DispatchedState,
+    transitions: fn() -> Vec<Transition>
 }
 
 impl UnactiveState
 {
     #[inline]
-    fn into_active(self, application : &mut Application) -> ActiveState
+    fn into_active(self, application: &mut App) -> ActiveState
     {
         ActiveState
         {
@@ -149,7 +149,7 @@ impl Fsm<UnactiveState>
         }
     }
 
-    pub fn build(self, app : &mut Application) -> Fsm<ActiveState>
+    pub fn build(self, app: &mut App) -> Fsm<ActiveState>
     {
         Fsm
         {
@@ -166,7 +166,7 @@ impl Fsm<UnactiveState>
 impl Fsm<ActiveState>
 {
     #[inline]
-    pub fn update(&mut self, app: &mut Application)
+    pub fn update(&mut self, app: &mut App)
     {
         self.current.state.update(app, &self.current.event);
 
