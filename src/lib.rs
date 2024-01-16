@@ -3,22 +3,21 @@
 //! baguette aims to be a simple but performant engine for indie games,
 //! providing all the necessary tools to develop a game
 
+pub use app;
+pub use input;
+pub use audio;
+pub use rendering;
+pub use math;
+
 use app::*;
 use input::{*,winit::*};
+
+
 
 pub type WindowTheme = window::Theme;
 
 /// a dynamically dispatched fsm that is still unactive
-pub type UninitDynFsm = dynamic::Fsm<dynamic::UnactiveState>;
-
-///// a statically dispatched fsm that is still unactive
-//pub type UninitStaticFsm<T> = r#static::Fsm<r#static::UnactiveState<T>,T>;
-
-/// a dynamically dispatched fsm that has been initialized
-pub type InitDynFsm = dynamic::Fsm<dynamic::ActiveState>;
-
-///// a statically dispatched fsm that has been initialized
-//pub type InitStaticFsm<T> = r#static::Fsm<r#static::ActiveState<T>,T>;
+pub(crate) type UninitDynFsm = dynamic::Fsm<dynamic::UnactiveState>;
 
 
 enum FsmState
@@ -143,7 +142,8 @@ impl AppBuilder<UninitDynFsm>
         self
     }
     
-    /// run the loop, everything after this call will be unreachable
+    /// run the loop, open the window, all that kind of stuff,
+    /// everything after this call will be unreachable
     pub fn run(self)
     {
         let application = async

@@ -14,7 +14,7 @@ type TransitionsCallback = fn() -> Vec<Transition>;
 
 pub trait State
 {
-    fn new(app : &'static mut App) -> Self where Self: Sized;
+    fn new(app: &mut App) -> Self where Self: Sized;
 
     fn update(&mut self, app: &mut App, event: &StateEvent);
 
