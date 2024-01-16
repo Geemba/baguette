@@ -13,7 +13,6 @@ struct TestA
 {
     cam: &'static mut Camera,
     sprite: Sprite,
-    open_window: bool
 }
 
 impl State for TestA
@@ -33,42 +32,55 @@ impl State for TestA
                     pxunit: 100.,
                 }
             ),
-            open_window: true,
         }
     }
 
-    fn update(&mut self, app: &mut App<'_>, _: &StateEvent)
+    fn update(&mut self, app: &mut App, _: &StateEvent)
     {
         self.move_cam(&app.input);
 
-        app.close();
-
         egui::Window::new("window example")
-            .movable(true)
             .show(app.ui().context(), |ui|
             {
-                let button = ui.button("close app");
-                
+                ui.group
+                (
+                    |ui|
+                    {
+                        ui.label
+                        (
+                            egui::RichText::new
+                            (
+                                "Camera position: \n".to_owned() +
+                                &format!
+                                (
+                                    "{:.1}, {:.1}, {:.1}",
+                                    
+                                    self.cam.position().x,
+                                    self.cam.position().y,
+                                    self.cam.position().z
+                                )
+                            )
+                                .monospace()
+                                .size(20.)
+                        );
+
+                        if ui.button(egui::RichText::new("reset").size(20.)).clicked()
+                        {
+                            self.cam.set_position(math::Vec3::Z * 2.)
+                        }
+                    }
+                );
+
+                let button = ui.button
+                (
+                    egui::RichText::new("Close App")
+                        .size(30.)
+                );
+
                 if button.clicked()
                 {
                     ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
-                }
-
-                ui.label
-                (
-                    egui::RichText::new(self.cam.position().to_string()).size(30.)
-                );
-
-                ui.label
-                (
-                    egui::RichText::new("clicked:".to_owned() + &button.clicked().to_string()).size(30.)
-                );
-
-                ui.label
-                (
-                    egui::RichText::new("is egui responding :".to_owned() + &ui.ctx().wants_pointer_input().to_string()).size(30.)
-                );
-                
+                }                              
             });
     }
 }
