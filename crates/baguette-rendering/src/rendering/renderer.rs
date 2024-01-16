@@ -149,9 +149,9 @@ impl RendererHandler
                 {
                     render_pass.draw(&mut pass)?
                 }
-            
-                self.ui.render(&mut pass, &self.window, window_target);
+                 
             }
+            self.ui.render(&mut pass, &self.window, window_target);
         }
 
         self.output.copy_to(&mut encoder, frame_output);
