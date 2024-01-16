@@ -19,7 +19,7 @@ impl<'a> From<&'a mut RendererHandler> for Renderer<'a>
 
 impl Renderer<'_>
 {
-    pub fn ui(&self) -> Ui
+    pub fn ui(&self) -> ui::Ui
     {
         (&self.handle.ui).into()
     }
@@ -31,6 +31,11 @@ impl Renderer<'_>
             T: Into<std::ffi::OsString> + AsRef<std::path::Path>
     {
         self.handle.get_or_insert_pass::<SpritePass>().add(sprite)
+    }
+
+    pub fn screen_size<T: input::winit::dpi::Pixel>(&self) -> input::winit::dpi::PhysicalSize<T>
+    {
+        self.handle.window.inner_size().cast()
     }
 }
 
@@ -281,7 +286,7 @@ impl RendererHandler
         static_render_data::StaticData::init(instance, device, queue);
 
         // until we dont remove the static data the order we itialize matters
-        let ui = UiHandle::new(width,height,scale);
+        let ui = ui::UiHandle::new(width,height,scale);
 
         Self { adapter, passes: None, window, ui, output }
     }

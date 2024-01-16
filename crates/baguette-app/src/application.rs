@@ -63,7 +63,7 @@ pub struct App<'a>
 
 impl<'a> App<'a>
 {
-    pub fn ui(&self) -> rendering::Ui
+    pub fn ui(&self) -> rendering::ui::Ui
     {
         self.renderer.ui()
     }
@@ -74,6 +74,12 @@ impl<'a> App<'a>
         // we just send a close command from egui,
         // this has no sense other than being faster to implement 
         // rather than creating more functions just to do the same thing
-        self.ui().context().send_viewport_cmd(rendering::egui::ViewportCommand::Close)
+        self.ui().context().send_viewport_cmd(rendering::ui::ViewportCommand::Close)
+    }
+
+    pub fn screen_size<T>(&self) -> input::winit::dpi::PhysicalSize<T>
+        where T: input::winit::dpi::Pixel
+    {
+        self.renderer.screen_size::<T>()
     }
 }
