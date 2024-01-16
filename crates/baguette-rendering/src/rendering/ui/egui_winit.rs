@@ -651,7 +651,7 @@ impl State {
 
         let pressed = *state == winit::event::ElementState::Pressed;
 
-        let _physical_key = if let winit::keyboard::PhysicalKey::Code(keycode) = *physical_key {
+        let physical_key = if let winit::keyboard::PhysicalKey::Code(keycode) = *physical_key {
             key_from_key_code(keycode)
         } else {
             None
@@ -666,6 +666,7 @@ impl State {
                 pressed,
                 repeat: false, // egui will fill this in for us!
                 modifiers: self.input.modifiers,
+                physical_key,
             });
         }
 
@@ -909,14 +910,14 @@ impl State {
             {
                 if window.drag_resize_window(match direction
                 {
-                    egui::viewport::ResizeDirection::North => ResizeDirection::North,
-                    egui::viewport::ResizeDirection::South => ResizeDirection::South,
-                    //egui::viewport::ResizeDirection::East => ResizeDirection::East,
-                    egui::viewport::ResizeDirection::West => ResizeDirection::West,
-                    egui::viewport::ResizeDirection::NorthEast => ResizeDirection::NorthEast,
-                    egui::viewport::ResizeDirection::SouthEast => ResizeDirection::SouthEast,
-                    egui::viewport::ResizeDirection::NorthWest => ResizeDirection::NorthWest,
-                    egui::viewport::ResizeDirection::SouthWest => ResizeDirection::SouthWest,
+                    egui::ResizeDirection::North => ResizeDirection::North,
+                    egui::ResizeDirection::South => ResizeDirection::South,
+                    egui::ResizeDirection::East => ResizeDirection::East,
+                    egui::ResizeDirection::West => ResizeDirection::West,
+                    egui::ResizeDirection::NorthEast => ResizeDirection::NorthEast,
+                    egui::ResizeDirection::SouthEast => ResizeDirection::SouthEast,
+                    egui::ResizeDirection::NorthWest => ResizeDirection::NorthWest,
+                    egui::ResizeDirection::SouthWest => ResizeDirection::SouthWest,
                 }).is_err() {
                 }
             }
@@ -989,15 +990,15 @@ impl State {
                         .expect("Invalid ICON data!")
                 }));
             }
-            ViewportCommand::IMEPosition(rect) => {
-                window.set_ime_cursor_area(
-                    PhysicalPosition::new(pixels_per_point * rect.x, pixels_per_point * rect.y),
-                    PhysicalSize::new(
-                        pixels_per_point * rect.x,
-                        pixels_per_point * rect.y,
-                    ),
-                );
-            }
+            //ViewportCommand::IMEPosition(rect) => {
+            //    window.set_ime_cursor_area(
+            //        PhysicalPosition::new(pixels_per_point * rect.x, pixels_per_point * rect.y),
+            //        PhysicalSize::new(
+            //            pixels_per_point * rect.x,
+            //            pixels_per_point * rect.y,
+            //        ),
+            //    );
+            //}
             ViewportCommand::IMEAllowed(v) => window.set_ime_allowed(*v),
             ViewportCommand::IMEPurpose(p) => window.set_ime_purpose(match p {
                 egui::viewport::IMEPurpose::Password => winit::window::ImePurpose::Password,
@@ -1046,7 +1047,8 @@ impl State {
                 if window.set_cursor_hittest(!passthrough).is_err() {
                 }
             }
-            ViewportCommand::Screenshot => ()
+            ViewportCommand::Screenshot => (),
+            ViewportCommand::IMERect(_) => (),
         }
     }
 
@@ -1185,7 +1187,7 @@ fn key_from_key_code(key: winit::keyboard::KeyCode) -> Option<egui::Key> {
 
         KeyCode::Minus | KeyCode::NumpadSubtract => Key::Minus,
 
-        KeyCode::NumpadAdd => Key::PlusEquals,
+        KeyCode::NumpadAdd => Key::Plus,
 
         KeyCode::Digit0 | KeyCode::Numpad0 => Key::Num0,
         KeyCode::Digit1 | KeyCode::Numpad1 => Key::Num1,
