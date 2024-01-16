@@ -163,11 +163,11 @@ impl AppBuilder<UninitDynFsm>
 
             eventloop.run
             (
-                move |event: Event<()>, target|
+                move |event: winit::event::Event<()>, target|
     
                 match event
                 {
-                    Event::WindowEvent { event, .. } =>
+                    winit::event::Event::WindowEvent { event, .. } =>
                     {
                         app.check_input(&event);
 
@@ -210,19 +210,19 @@ impl AppBuilder<UninitDynFsm>
                         AppHandler::window(&app).request_redraw()
                     }
 
-                    Event::LoopExiting => (/* program exit */),
+                    winit::event::Event::LoopExiting => (/* program exit */),
 
-                    Event::Resumed =>
+                    winit::event::Event::Resumed =>
                     {
                         app.renderer.resume();
                         fsm.build(&mut app.to_user())
                     }
-                    Event::Suspended =>
+                    winit::event::Event::Suspended =>
                     {
                         app.focused = false;
                         app.renderer.suspend()
                     }
-                    Event::MemoryWarning => target.exit(),
+                    winit::event::Event::MemoryWarning => target.exit(),
                     _ => ()
                 }
             )
