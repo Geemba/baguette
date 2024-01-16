@@ -1,4 +1,5 @@
-// contains an integration of egui specifically for the baguette engine
+//! contains an integration of egui specifically for the baguette engine
+//
 // this is mostly taken by the official wgpu integration
 
 #[allow(dead_code)]
@@ -7,6 +8,7 @@ mod egui_wgpu;
 mod egui_winit;
 
 pub use egui;
+pub use egui::*;
 
 pub struct Ui<'a>
 {
