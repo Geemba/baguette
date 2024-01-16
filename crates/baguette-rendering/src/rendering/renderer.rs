@@ -105,7 +105,11 @@ impl RendererHandler
     /// # Errors
     ///
     /// this function will return an error if the surface is not able to be retrieved.
-    pub fn render(&mut self) -> Result<(), wgpu::SurfaceError>
+    pub fn render
+    (
+        &mut self,
+        window_target: &input::winit::event_loop::EventLoopWindowTarget<()>
+    ) -> Result<(), wgpu::SurfaceError>
     {
         Camera::update_all();
 
@@ -146,7 +150,7 @@ impl RendererHandler
                     render_pass.draw(&mut pass)?
                 }
             
-                self.ui.render(&mut pass, &self.window);
+                self.ui.render(&mut pass, &self.window, window_target);
             }
         }
 

@@ -14,7 +14,7 @@ pub use accesskit_winit;
 pub use egui;
 #[cfg(feature = "accesskit")]
 use egui::accesskit;
-use egui::{Pos2, Rect, Vec2, ViewportBuilder, ViewportCommand, ViewportId, ViewportInfo};
+use egui::{Pos2, Rect, Vec2, ViewportCommand, ViewportId};
 pub use input::winit;
 
 use winit::{
@@ -843,6 +843,7 @@ impl State {
         &mut self,
         commands: impl IntoIterator<Item = &'a ViewportCommand>,
         window: &Window,
+        target: &EventLoopWindowTarget<()>
     )
     {
         for command in commands
@@ -851,6 +852,7 @@ impl State {
             (
                 window,
                 command,
+                target
             )
         }
     }
@@ -860,6 +862,7 @@ impl State {
         &mut self,
         window: &Window,
         command: &ViewportCommand,
+        target: &EventLoopWindowTarget<()>
     )
     {
         use winit::window::ResizeDirection;
@@ -874,7 +877,7 @@ impl State {
         {
             ViewportCommand::Close =>
             {
-                info.events.push(egui::ViewportEvent::Close);
+                target.exit();
             }
             ViewportCommand::CancelClose =>
             {
@@ -882,7 +885,15 @@ impl State {
             }
             ViewportCommand::StartDrag =>
             {
-                // If `is_viewport_focused` is not checked on x11 the input will be permanently taken until the app is killed!
+                if let Err(err) = window.drag_window()
+                {
+                    match err
+                    {
+                        winit::error::ExternalError::NotSupported(_) => (),
+                        winit::error::ExternalError::Ignored => (),
+                        winit::error::ExternalError::Os(_) => (),
+                    }
+                }
             }
             ViewportCommand::InnerSize(size) =>
             {

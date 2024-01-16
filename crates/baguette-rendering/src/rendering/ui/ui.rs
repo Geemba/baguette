@@ -71,7 +71,8 @@ impl UiHandle
     pub(crate) fn render<'a>
     (
         &'a mut self, pass: &mut wgpu::RenderPass<'a>,
-        window: &crate::Window
+        window: &crate::Window,
+        target: &egui_winit::winit::event_loop::EventLoopWindowTarget<()>
     )
     {
         let id = &self.state.ctx.viewport_id();
@@ -82,7 +83,7 @@ impl UiHandle
             .expect("the context's viewport id didn't match any actual viewport")
             .commands;
 
-        self.state.process_viewport_commands(commands, window);
+        self.state.process_viewport_commands(commands, window, target);
 
         self.state.handle_platform_output(window, output.platform_output);
 
