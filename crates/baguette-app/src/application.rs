@@ -41,8 +41,6 @@ impl AppHandler
         {
             self.input.check(event);
         }
-
-        //self.renderer.ui.begin_egui_frame(&self.renderer.window)
     }
 
     /// return a wrapper type that doesn't contain the engine critical methods 
@@ -73,6 +71,9 @@ impl<'a> App<'a>
     /// closes the program 
     pub fn close(&mut self)
     {
+        // we just send a close command from egui,
+        // this has no sense other than being faster to implement 
+        // rather than creating more functions just to do the same thing
         self.ui().context().send_viewport_cmd(rendering::egui::ViewportCommand::Close)
     }
 }

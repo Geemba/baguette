@@ -180,7 +180,7 @@ impl AppBuilder<UninitDynFsm>
 
                                 fsm.update(app.to_user());
 
-                                if let Some(err) = app.renderer.render().err()
+                                if let Some(err) = app.renderer.render(target).err()
                                 {
                                     match err
                                     {

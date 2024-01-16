@@ -44,7 +44,7 @@ impl State for TestA
         }
     }
 
-    fn update(&mut self, app: &mut App<'_>, _: &StateEvent)
+    fn update(&mut self, _app: &mut App, _: &StateEvent)
     {
         match self.time > 8
         {
