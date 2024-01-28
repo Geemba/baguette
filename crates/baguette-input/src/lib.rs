@@ -26,18 +26,18 @@ struct InputState
 
 impl InputHandler
 {
-    #[inline]
     pub fn check(&mut self, event: &WindowEvent)
-    {    
+    {
         match event
         {
             WindowEvent::KeyboardInput{ event: KeyEvent { physical_key, state,.. }, .. } =>
             {
-                match state
+                if let ElementState::Pressed = state
                 {
-                    ElementState::Pressed =>
+                    match self.current_pressed_keys.get_mut(physical_key)
                     {
-                        if self.current_pressed_keys.get(physical_key).is_none()
+                        Some(state) => state.pressed_this_frame = false,
+                        None => 
                         {
                             self.current_pressed_keys.insert
                             (
@@ -46,12 +46,12 @@ impl InputHandler
                             );
                         }
                     }
-                    ElementState::Released =>
+                }
+                else 
+                {
+                    if let Some(InputState { released, .. }) = self.current_pressed_keys.get_mut(physical_key)
                     {
-                        if let Some(InputState { released, .. }) = self.current_pressed_keys.get_mut(physical_key)
-                        {
-                            *released = true;
-                        }
+                        *released = true;
                     }
                 }
             }
@@ -61,7 +61,7 @@ impl InputHandler
                 match state
                 {
                     ElementState::Pressed =>
-                    {
+                    
                         if self.pressed_mouse_buttons.get(button).is_none()
                         {
                             self.pressed_mouse_buttons.insert
@@ -69,14 +69,14 @@ impl InputHandler
                                 *button, InputState { pressed_this_frame: true, released: false }
                             );
                         }
-                    }
+                    
                     ElementState::Released =>
-                    {
+                    
                         if let Some(InputState { released, .. }) = self.pressed_mouse_buttons.get_mut(button)
                         {
                             *released = true;
                         }
-                    }
+                    
                 }
             }
             WindowEvent::CursorMoved { position, .. } =>
@@ -90,51 +90,52 @@ impl InputHandler
         }
     }
     
-    #[allow(dead_code)]
     pub fn flush_released_keys(&mut self)
     {
         self.current_pressed_keys.retain(|_,state| !state.released);
         self.pressed_mouse_buttons.retain(|_,state| !state.released);
+        
+        self.current_pressed_keys
+        .iter_mut()
+        .for_each
+        (
+            |(..,state)| if state.pressed_this_frame
+            {
+                state.pressed_this_frame = false
+            }
+        );
+
+        self.pressed_mouse_buttons
+        .iter_mut()
+        .for_each
+        (
+            |(..,state)| if state.pressed_this_frame
+            {
+                state.pressed_this_frame = false
+            }
+        );
     }
 }
 
 pub struct Input<'a>
 {
-    handler: &'a mut InputHandler
+    handler: &'a InputHandler
 }
 
-impl<'a> From<&'a mut InputHandler> for Input<'a>
+impl<'a> From<&'a InputHandler> for Input<'a>
 {
-    fn from(handler: &'a mut InputHandler) -> Self
-    {
-        Self
-        {
-            handler,
-        }
-    }
+    fn from(handler: &'a InputHandler) -> Self { Self { handler } }
 }
-
 
 // keys
 impl Input<'_>
 {
     /// returns true the first frame the button is pressed,
-    pub fn get_key_down(&mut self, keycode: KeyCode) -> bool
+    pub fn get_key_down(&self, keycode: KeyCode) -> bool
     {
-        let state = self.handler.current_pressed_keys.get_mut(&PhysicalKey::Code(keycode));
-
-        match state
-        {
-            Some(InputState { pressed_this_frame: true, .. }) =>
-            {
-                // theres a bunch of frame delay before the program checks the input again,
-                // lets change this ourselves to false since it will definitely be after the first invocation
-                state.unwrap().pressed_this_frame = false;
-                true
-            }
-
-            _ => false
-        }
+        self.handler.current_pressed_keys
+            .get(&PhysicalKey::Code(keycode))
+            .is_some_and(|key| key.pressed_this_frame == true)
     }
 
     /// returns true if the key is being pressed
@@ -201,29 +202,33 @@ impl Input<'_>
 impl Input<'_>
 {
     // returns true the first frame the mouse button is pressed
-    pub fn get_mouse_button_down(&mut self, click: MouseButton) -> bool
+    pub fn get_mouse_button_down(&self, click: MouseButton) -> bool
     {
-        let state = self.handler.pressed_mouse_buttons.get_mut(&click);
+        self.handler.pressed_mouse_buttons
+            .get(&click)
+            .is_some_and(|button| button.pressed_this_frame == true)
 
-        match state
-        {
-            Some(InputState { pressed_this_frame: true, .. }) =>
-            {
-                // theres a bunch of frame delay before the program checks the input again,
-                // lets change this ourselves to false since it will definitely be after the first fn invocation
-                state.unwrap().pressed_this_frame = false;
-                true
-            }
+        //match state
+        //{
+        //    Some(InputState { pressed_this_frame: true, .. }) =>
+        //    {
+        //        // theres a bunch of frame delay before the program checks the input again,
+        //        // lets change this ourselves to false since it will definitely be after the first fn invocation
+        //        state.unwrap().pressed_this_frame = false;
+        //        true
+        //    }
 
-            _ => false
-        }
+        //    _ => false
+        //}
     }
 
+    #[inline]
     pub fn get_mouse_button_holding(&self, click: MouseButton) -> bool
     {
         self.handler.pressed_mouse_buttons.get(&click).is_some()
     }
 
+    #[inline]
     pub fn get_mouse_button_up(&self, click: MouseButton) -> bool
     {
         match self.handler.pressed_mouse_buttons.get(&click)
@@ -233,6 +238,7 @@ impl Input<'_>
         }  
     }
     
+    #[inline]
     pub fn mouse_position(&self) -> baguette_math::Vec2
     {
         self.handler.cursor_position

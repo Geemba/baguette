@@ -48,7 +48,7 @@ impl AppHandler
     {
         App
         {
-            input: (&mut self.input).into(),
+            input: (&self.input).into(),
             renderer: (&mut self.renderer).into(),
         }
     }
