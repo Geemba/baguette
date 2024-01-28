@@ -5,7 +5,7 @@ edition = "2021"
 license.workspace = true
 
 [dependencies]
-wgpu = "*"
+wgpu = "0.18.0"
 #spin_sleep = "*"
 pollster = "*"
 bytemuck = { version = "*", features = [ "derive" ]}
