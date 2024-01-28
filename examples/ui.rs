@@ -39,7 +39,7 @@ impl State for TestA
     {
         self.move_cam(&app.input);
 
-        egui::Window::new("window example")
+        ui::Window::new("window example")
             .show(app.ui().context(), |ui|
             {
                 ui.group
@@ -48,7 +48,7 @@ impl State for TestA
                     {
                         ui.label
                         (
-                            egui::RichText::new
+                            ui::RichText::new
                             (
                                 "Camera position: \n".to_owned() +
                                 &format!
@@ -64,7 +64,7 @@ impl State for TestA
                                 .size(20.)
                         );
 
-                        if ui.button(egui::RichText::new("reset").size(20.)).clicked()
+                        if ui.button(ui::RichText::new("reset").size(20.)).clicked()
                         {
                             self.cam.set_position(math::Vec3::Z * 2.)
                         }
@@ -73,13 +73,13 @@ impl State for TestA
 
                 let button = ui.button
                 (
-                    egui::RichText::new("Close App")
+                    ui::RichText::new("Close App")
                         .size(30.)
                 );
 
                 if button.clicked()
                 {
-                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                    ui.ctx().send_viewport_cmd(ui::ViewportCommand::Close);
                 }                              
             });
     }
