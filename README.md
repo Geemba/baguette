@@ -1,11 +1,7 @@
 <p align="center">
   <img src="assets/baguette_logo_and_text.png"/>
 
-<h2 align="center">🥖🥖A rust baked game engine 🥖🥖</h2>
-  
-<h4 align="center">note: this crate is being used for a game i'm working on, i will keep updating this engine as more content will eventually be required </h4>
-
-
+<h2 align="center">🥖🥖A  simple 2d rust game engine i did in my spare time🥖🥖</h2>
 
 ## Roadmap
 
