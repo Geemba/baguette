@@ -77,7 +77,7 @@ pub fn new() -> AppBuilder<UninitDynFsm>
     }
 }
 
-pub type Transition<St> = (fn(&St) -> bool, StateId);
+pub type Transition<St> = (fn(&mut App, &St) -> bool, StateId);
 
 impl AppBuilder<UninitDynFsm>
 {
@@ -118,15 +118,14 @@ impl AppBuilder<UninitDynFsm>
     /// ```
     /// # panics
     /// 
-    /// 
-    /// panics if a state of the same type was already added 
+    /// panics if you attempt to add the same state twice
     pub fn add_state<St: dynamic::State + 'static>(mut self, transitions: fn() -> Vec<Transition<St>>) -> Self
     {
         let transitions = unsafe 
         {
             core::mem::transmute::
-            <fn() -> Vec<(fn(&St) -> bool, StateId)>,
-             fn() -> Vec<(fn(&DefaultDispatcher) -> bool, StateId)>
+            <fn() -> Vec<(fn(&mut App, &St) -> bool, StateId)>,
+             fn() -> Vec<(fn(&mut App, &DefaultDispatcher) -> bool, StateId)>
             >(transitions)
         };
 

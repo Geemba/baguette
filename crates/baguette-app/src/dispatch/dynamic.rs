@@ -3,7 +3,7 @@ use crate::*;
 
 /// [Transition] is composed of a `predicate` function and the [StateId]
 /// it should transition to if the predicate returns `true`
-pub type Transition = (fn(&DispatchedState) -> bool, StateId);
+pub type Transition = (fn(&mut App, &DispatchedState) -> bool, StateId);
 
 /// how the state type is dispatched 
 type DispatchedState = Box<dyn State>;
@@ -63,9 +63,9 @@ impl ActiveState
         }
     }
 
-    fn avaiable_transition(&mut self) -> Option<&Transition>
+    fn avaiable_transition(&mut self, app: &mut App) -> Option<&Transition>
     {
-        self.transitions.iter().find(|transition| (transition.0)(&self.state))
+        self.transitions.iter().find(|transition| (transition.0)(app, &self.state))
     }
 }
 
@@ -172,7 +172,7 @@ impl Fsm<ActiveState>
 
         match &self.current.event
         {  
-            StateEvent::Update => if let Some(transition) = self.current.avaiable_transition()
+            StateEvent::Update => if let Some(transition) = self.current.avaiable_transition(app)
             {
                 self.current.event = StateEvent::Exit(transition.1)
             }
