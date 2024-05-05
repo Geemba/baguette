@@ -1,7 +1,8 @@
-use std::{cell::RefCell, ops::Deref, sync::Arc};
+use std::{cell::RefCell, sync::Arc};
 use crate::*;
 
 #[derive(Clone)]
+/// a handle to the scenes camera
 pub struct Camera
 {
     pub(crate) data: Arc<RefCell<CameraData>>

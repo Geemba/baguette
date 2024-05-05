@@ -24,7 +24,7 @@ impl State for TestA
             cam: Camera::get(&mut app.renderer),
             sprite: app.renderer.load_sprite
             (
-                SpriteLoader::Sprite
+                SpriteLoader::SingleSprite
                 {
                     path: r"assets\green dude.png",
                     filtermode: FilterMode::Nearest,

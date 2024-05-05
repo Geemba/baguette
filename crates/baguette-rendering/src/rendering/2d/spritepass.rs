@@ -184,9 +184,11 @@ impl RenderPass for SpritePass
     }
 }
 
+/// describes the type of sprite you want to create
 pub enum SpriteLoader<'a, Path: Into<std::ffi::OsString>>
 {
-    Sprite
+    /// sas
+    SingleSprite
     {
         /// directory of the source
         path: Path,

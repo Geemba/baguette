@@ -1,3 +1,5 @@
+use std::ptr::NonNull;
+
 pub struct SpriteBinding
 {
 
@@ -34,17 +36,17 @@ impl SpriteInstance
 
     #[inline]
     /// rotates along the y axis to face the camera
-    pub fn billboard_y(&mut self, cam: &mut crate::CameraData)
+    pub fn billboard_y(&mut self, cam: &mut crate::Camera)
     {
-        self.transform.orientation = cam.orientation();
+        self.transform.orientation = cam.data.borrow().orientation();
         self.transform.orientation.y *= -1.;
     }
 
     #[inline]
     /// rotates along the x and y axis to face the camera
-    pub fn billboard_xy(&mut self, cam: &mut crate::CameraData)
+    pub fn billboard_xy(&mut self, cam: &mut crate::Camera)
     {
-        self.transform.orientation = cam.orientation().inverse()
+        self.transform.orientation = cam.data.borrow().orientation().inverse()
     }
 
     pub fn position(&self) -> baguette_math::Vec3
@@ -285,7 +287,7 @@ impl SpriteBinding
     {
         let (ref id, filtermode, instances, pxunit, layout ) = match loader
         {
-            crate::SpriteLoader::Sprite { path, filtermode, mut instances, pxunit } =>
+            crate::SpriteLoader::SingleSprite { path, filtermode, mut instances, pxunit } =>
             {
                 let mut _instances = Vec::with_capacity(instances.len());
 
@@ -641,7 +643,17 @@ pub struct Sprite
 {
     pub(crate) sprite: SpriteBinding,
     /// this is only used on drop to remove the reference to this [Sprite]
-    pub(crate) spritebuffer: std::ptr::NonNull<Vec<std::ptr::NonNull<SpriteGpuBinding>>>,
+    pub(crate) spritebuffer: NonNull<Vec<NonNull<SpriteGpuBinding>>>,
+}
+
+impl Sprite
+{
+    pub fn new<T>(renderer: &mut crate::Renderer, sprite: crate::SpriteLoader<T>) -> Self
+    where
+        T: Into<std::ffi::OsString> + AsRef<std::path::Path>
+    {
+        renderer.load_sprite(sprite)
+    }
 }
 
 impl std::ops::Deref for Sprite

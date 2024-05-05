@@ -43,7 +43,7 @@ impl RenderPasses
     //}    
 }
 
-pub trait RenderPass
+pub(crate) trait RenderPass
 {
     /// describes how to initialize this pass
     fn add_pass(ctx: ContextHandle) -> Passes where Self: Sized;
