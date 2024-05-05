@@ -1,18 +1,20 @@
+use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
+
 use crate::*;
 use input::winit::window::Window;
 
 pub struct Renderer<'a>
 {
-    handle: &'a mut RendererHandler
+    data: &'a mut RendererData
 }
 
-impl<'a> From<&'a mut RendererHandler> for Renderer<'a> 
+impl<'a> From<&'a mut RendererData> for Renderer<'a> 
 {
-    fn from(handle: &'a mut RendererHandler) -> Self
+    fn from(data: &'a mut RendererData) -> Self
     {
         Self
         {
-            handle
+            data
         }
     }
 }
@@ -21,7 +23,13 @@ impl Renderer<'_>
 {
     pub fn ui(&self) -> ui::Ui
     {
-        (&self.handle.ui).into()
+        (&self.data.ui).into()
+    }
+
+    /// todo: make option to create camera
+    pub fn get_camera(&mut self) -> Camera
+    {
+        self.data.camera.clone()
     }
 
     /// loads a sprite to be rendered,
@@ -30,21 +38,26 @@ impl Renderer<'_>
         where
             T: Into<std::ffi::OsString> + AsRef<std::path::Path>
     {
-        self.handle.get_or_insert_pass::<SpritePass>().add(sprite)
+        let ctx = self.data.ctx.clone();
+        let pass = self.data.get_or_insert_pass::<SpritePass>();
+        pass.add(ctx, sprite)
     }
 
     pub fn screen_size<T: input::winit::dpi::Pixel>(&self) -> input::winit::dpi::PhysicalSize<T>
     {
-        self.handle.window.inner_size().cast()
+        self.data.window.inner_size().cast()
     }
 }
 
 /// this is handled by the engine
-pub struct RendererHandler
+pub struct RendererData
 {
-    pub window: Window,
-    pub ui: ui::UiHandle,
+    camera: Camera,
 
+    pub window: Window,
+    pub ui: ui::UiData,
+    ctx: ContextHandle,
+    
     output: FrameOutput,
 
     adapter: wgpu::Adapter,
@@ -52,12 +65,24 @@ pub struct RendererHandler
 }
 
 // integration specific
-impl RendererHandler
+impl RendererData
 {
+    fn camera(&mut self) -> std::cell::RefMut<CameraData>
+    {
+        self.camera.data.borrow_mut()
+    }
+
+    fn ctx(&mut self)
+        -> Result<RwLockWriteGuard<ContextHandleData>, PoisonError<RwLockWriteGuard<ContextHandleData>>>
+    {
+        self.ctx.data.write()
+    }
+
     pub fn resize(&mut self, (width,height): (u32,u32))
     {
-        config().width = width;
-        config().height = height;
+        let mut ctx_write = self.ctx.data.write().expect("aonna it crashed");
+        ctx_write.screen.config.width = width;
+        ctx_write.screen.config.height = height;
 
         let (physical_width, physical_height) = 
         (
@@ -65,9 +90,15 @@ impl RendererHandler
         );
         
         self.ui.update_screen_size(width, height);
-        self.output.update_texture(device(), width, height);
+        self.output.update_texture(&ctx_write.device, width, height);
 
-        Camera::resize_all(physical_width / physical_height);
+        drop(ctx_write);
+
+        // resize camera to match new screen size
+        self.camera().resize(physical_width / physical_height);
+        
+
+        //CameraData::resize_all(physical_width / physical_height);
 
         self.update_surface()
     }
@@ -90,7 +121,7 @@ impl RendererHandler
             Some(i) => &mut passes.renderpasses[i],
             None =>
             {
-                passes.renderpasses.push(<T>::add_pass());
+                passes.renderpasses.push(<T>::add_pass(self.ctx.clone()));
                 passes.renderpasses.last_mut().unwrap()
             }
         };
@@ -113,16 +144,26 @@ impl RendererHandler
     pub fn render
     (
         &mut self,
-        window_target: &input::winit::event_loop::EventLoopWindowTarget<()>
+        window_target: &input::winit::event_loop::EventLoopWindowTarget<()>,
     ) -> Result<(), wgpu::SurfaceError>
     {
-        Camera::update_all();
+        let ctx_read = self.ctx
+            .read()
+            .expect("ctx failed to retrieve while rendering");
 
-        let output = surface().get_current_texture()?;
+        //CameraData::update_all();
+        self.camera.data.borrow_mut().update(&ctx_read);
+
+        let camera = &self.camera.data.borrow();
+
+        let output = ctx_read.screen.surface
+            .as_ref()
+            .expect("how are we rendering without a surface")
+            .get_current_texture()?;
+
         let frame_output = &output.texture.create_view(&Default::default());
 
-        let mut encoder = create_command_encoder("render encoder");
-
+        let mut encoder = ctx_read.create_command_encoder("render encoder");
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor
             {
@@ -148,20 +189,20 @@ impl RendererHandler
                 occlusion_query_set: None
             });
 
+
             if let Some(passes) = &self.passes 
             {
                 for render_pass in passes.iter()
                 {
-                    render_pass.draw(&mut pass)?
+                    render_pass.draw(&mut pass, camera)?
                 }
-                 
             }
-            self.ui.render(&mut pass, &self.window, window_target);
+            self.ui.render(&mut pass, &self.window, window_target, &ctx_read);
         }
 
         self.output.copy_to(&mut encoder, frame_output);
         
-        queue().submit([encoder.finish()]);
+        ctx_read.queue.submit([encoder.finish()]);
         output.present();
         
         Ok(())
@@ -172,14 +213,19 @@ impl RendererHandler
     /// # Errors
     ///
     /// this function will return an error if the surface is not able to be retrieved.
-    pub fn render_plain_color(&self, r:f64,g:f64,b:f64) -> Result<(), wgpu::SurfaceError>
+    pub fn render_plain_color(&mut self, r:f64,g:f64,b:f64) -> Result<(), wgpu::SurfaceError>
     {
-        Camera::update_all();
+        let ctx_read = self.ctx
+            .read()
+            .expect("ctx failed to retrieve while rendering");
 
-        let output = surface().get_current_texture()?;
+        //CameraData::update_all();
+        self.camera.data.borrow_mut().update(&ctx_read);
+    
+        let output = ctx_read.screen.surface.as_ref().unwrap().get_current_texture()?;
         let frame_output = &output.texture.create_view(&Default::default());
 
-        let mut encoder = create_command_encoder("render encoder");
+        let mut encoder = ctx_read.create_command_encoder("render encoder");
         
         encoder.begin_render_pass(&wgpu::RenderPassDescriptor
         {
@@ -199,7 +245,7 @@ impl RendererHandler
             occlusion_query_set: None
         });
         
-        queue().submit([encoder.finish()]);
+        ctx_read.queue.submit([encoder.finish()]);
         output.present();
         
         Ok(())
@@ -216,7 +262,7 @@ impl RendererHandler
 
     pub fn suspend(&mut self)
     {
-        Screen::destroy();
+        self.ctx.data.write().unwrap().screen.destroy();
     }
 
     /// required to be called for any change to [wgpu::Device] to be effective.
@@ -225,14 +271,21 @@ impl RendererHandler
     ///
     fn update_surface(&mut self)
     {
-        surface().configure(device(), config());
+        let ctx_read = self.ctx.read().unwrap();
+        ctx_read.screen.surface
+            .as_ref()
+            .unwrap()
+            .configure
+            (
+                &ctx_read.device, &ctx_read.screen.config
+            );
     }
 
     /// list all limits that were requested of this device.
     /// if any of these limits are exceeded, functions may panic.
     pub fn limits(&self) -> wgpu::Limits
     {
-        device().limits()
+        self.ctx.data.read().unwrap().device.limits()
     }
 
     pub fn begin_egui_frame(&mut self)
@@ -242,7 +295,7 @@ impl RendererHandler
 }
 
 /// initialization
-impl RendererHandler
+impl RendererData
 {
     /// Creates a new [`Renderer`].
     ///
@@ -283,12 +336,34 @@ impl RendererHandler
 
         let output = FrameOutput::new(&device,width,height);
         
-        static_render_data::StaticData::init(instance, device, queue);
+        let ctx_data = ContextHandleData::new(instance, device, queue);
 
         // until we dont remove the static data the order we itialize matters
-        let ui = ui::UiHandle::new(width,height,scale);
+        let ui = ui::UiData::new(&ctx_data, width,height,scale);
 
-        Self { adapter, passes: None, window, ui, output }
+        let camera = Camera
+        {
+            data: std::cell::RefCell::new
+            (
+                CameraData::new(&ctx_data)
+            ).into()
+        };
+
+        let ctx = ContextHandle
+        {
+            data: RwLock::new(ctx_data).into(),
+        };
+
+        Self
+        {
+            adapter,
+            passes: None,
+            window,
+            ui,
+            camera,
+            output,
+            ctx,
+        }
     }
 
     /// this is where the window actually starts getting rendered.
@@ -298,7 +373,7 @@ impl RendererHandler
     /// panics if the surface is not capable of being created.
     pub fn resume(&mut self)
     {    
-        let surface = unsafe { instance().create_surface(&self.window) }
+        let surface = unsafe { self.ctx.read().unwrap().instance.create_surface(&self.window) }
             .expect("failed to create window");
         
         let surface_caps = surface.get_capabilities(&self.adapter);
@@ -321,8 +396,7 @@ impl RendererHandler
 
         ////
 
-        Screen::init(surface, config);
-   
+        self.ctx.data.write().unwrap().screen = Screen::new(surface, config);
         self.update_surface()
     }
 }
@@ -580,136 +654,133 @@ impl FrameOutput
     }
 }
 
-pub(super) mod static_render_data
+#[derive(Clone)]
+pub struct ContextHandle
 {
-    pub(super) struct StaticData
+    pub data: Arc<RwLock<ContextHandleData>>
+}
+
+impl ContextHandle
+{
+    pub fn read(&self)
+        -> Result<RwLockReadGuard<ContextHandleData>,
+        PoisonError<RwLockReadGuard<ContextHandleData>>>
     {
-        pub instance: wgpu::Instance,
-        pub device: wgpu::Device,
-        pub queue: wgpu::Queue,
-        pub screen: Screen
+        self.data.read()
     }
+}
 
-    pub struct Screen { surface: Option<wgpu::Surface>, config: wgpu::SurfaceConfiguration }
+pub(super) struct ContextHandleData
+{
+    pub instance: wgpu::Instance,
+    pub device: wgpu::Device,
+    pub queue: wgpu::Queue,
+    pub screen: Screen
+}
 
-    impl Screen
+pub(crate) struct Screen
+{
+    pub surface: Option<wgpu::Surface>,
+    pub config: wgpu::SurfaceConfiguration
+}
+
+impl Screen
+{
+    pub fn new(surface : wgpu::Surface, config : wgpu::SurfaceConfiguration) -> Self
     {
-        /// initializes the screen
-        ///
-        /// # Panics
-        ///
-        /// panics if the static data is not initialized yet.
-        pub fn init(surface : wgpu::Surface, config : wgpu::SurfaceConfiguration)
+        Self
         {
-            let screen = unsafe { &mut STATIC_DATA.get_mut().unwrap().screen };
-
-            screen.surface = Some(surface);
-            screen.config = config  
-        }
-
-        /// # Panics
-        ///
-        /// panics if the static data is not initialized.
-        pub fn destroy() { unsafe { STATIC_DATA.get_mut().unwrap().screen.surface.take(); } }
-    }
-
-    impl StaticData
-    {
-        pub(super) fn init(instance: wgpu::Instance, device: wgpu::Device, queue: wgpu::Queue) 
-        {
-            assert!
-            (
-                // returns error if init was already called
-                unsafe { &STATIC_DATA }.set
-                (
-                    Self 
-                    {
-                        instance,
-                        device,
-                        queue,
-                        screen: Screen 
-                        {
-                            surface: None,
-                            config: wgpu::SurfaceConfiguration
-                            {
-                                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                                format: wgpu::TextureFormat::Bgra8UnormSrgb,
-                                width: 1,
-                                height: 1,
-                                present_mode: wgpu::PresentMode::Fifo,
-                                alpha_mode: wgpu::CompositeAlphaMode::Auto,
-                                view_formats: vec![]
-                            }
-                        }
-                    }
-                ).is_ok(),
-                "static rendering data must be initialized only once"
-            );      
+            surface: Some(surface),
+            config,
         }
     }
 
-    static mut STATIC_DATA : once_cell::sync::OnceCell<StaticData> = once_cell::sync::OnceCell::new();
-
-    #[inline]
-    /// gets a reference to the instance of wgpu
-    /// 
-    /// will mostly be useful to create a surface
-    /// # Panics
-    ///
-    /// panics if the static data is not initialized yet.
-    pub fn instance() -> &'static wgpu::Instance
+    pub fn destroy(&mut self)
     {
-        unsafe { &STATIC_DATA.get().unwrap().instance }
+        self.surface.take();
     }
-    
-    #[inline]
-    /// gets a reference to the device instance
-    /// # Panics
-    ///
-    /// panics if the static data is not initialized yet.
-    pub fn device() -> &'static wgpu::Device
-    {
-        unsafe { &STATIC_DATA.get().unwrap().device }
-    }
+}
 
-    #[inline]
-    /// gets a mutable reference to the surface configuration
-    /// # Panics
-    ///
-    /// panics if the static data is not initialized yet.
-    pub fn config() -> &'static mut wgpu::SurfaceConfiguration
+impl ContextHandleData
+{
+    pub(super) fn new(instance: wgpu::Instance, device: wgpu::Device, queue: wgpu::Queue) -> Self
     {
-        unsafe
+        Self 
         {
-            &mut STATIC_DATA.get_mut().unwrap().screen
-                .config
-        }
+            instance,
+            device,
+            queue,
+            screen: Screen 
+            {
+                surface: None,
+                config: wgpu::SurfaceConfiguration
+                {
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    format: wgpu::TextureFormat::Bgra8UnormSrgb,
+                    width: 1,
+                    height: 1,
+                    present_mode: wgpu::PresentMode::Fifo,
+                    alpha_mode: wgpu::CompositeAlphaMode::Auto,
+                    view_formats: vec![]
+                }
+            }
+        }      
     }
+}
 
-    #[inline]
-    /// gets a reference to the surface if it exists
-    /// # Panics
-    ///
-    /// panics if the static data is not initialized yet.
-    pub fn surface() -> &'static wgpu::Surface
-    {
-        unsafe 
-        {
-            STATIC_DATA.get().unwrap().screen
-                .surface.as_ref().unwrap()
-        }
-    }
+//static mut STATIC_DATA : once_cell::sync::OnceCell<ContextHandle> = once_cell::sync::OnceCell::new();
 
-    #[inline]
-    /// gets a reference to the queue instance
-    /// 
-    /// A Queue executes recorded `CommandBuffer` objects and provides convenience methods 
-    /// for writing to buffers and textures
-    /// # Panics
-    ///
-    /// panics if the static data is not initialized yet.
-    pub fn queue() -> &'static wgpu::Queue
-    {
-        unsafe { &STATIC_DATA.get().unwrap().queue }
-    }
+#[inline]
+/// gets a reference to the instance of wgpu
+/// 
+/// will mostly be useful to create a surface
+/// # Panics
+///
+/// panics if the static data is not initialized yet.
+pub fn instance(ctx: &ContextHandleData) -> &wgpu::Instance
+{
+    &ctx.instance
+}
+
+#[inline]
+/// gets a reference to the device instance
+/// # Panics
+///
+/// panics if the static data is not initialized yet.
+pub fn device(ctx: &ContextHandleData) -> &wgpu::Device
+{
+    &ctx.device
+}
+
+#[inline]
+/// gets a mutable reference to the surface configuration
+/// # Panics
+///
+/// panics if the static data is not initialized yet.
+pub fn config(ctx: &mut ContextHandleData) -> &mut wgpu::SurfaceConfiguration
+{
+    &mut ctx.screen.config
+}
+
+#[inline]
+/// gets a reference to the surface if it exists
+/// # Panics
+///
+/// panics if the static data is not initialized yet.
+pub fn surface(ctx: &ContextHandleData) -> Option<&wgpu::Surface>
+{
+    ctx.screen.surface.as_ref()
+}
+
+#[inline]
+/// gets a reference to the queue instance
+/// 
+/// A Queue executes recorded `CommandBuffer` objects and provides convenience methods 
+/// for writing to buffers and textures
+/// # Panics
+///
+/// panics if the static data is not initialized yet.
+pub fn queue(ctx: &ContextHandleData) -> &wgpu::Queue
+{
+    &ctx.queue
 }

@@ -1,5 +1,8 @@
 pub struct SpriteBinding
 {
+
+    pub(crate) ctx: crate::ContextHandle,
+
     pub(crate) instances: Vec<SpriteInstance>,
 
     /// the texture that the sprite will use
@@ -31,7 +34,7 @@ impl SpriteInstance
 
     #[inline]
     /// rotates along the y axis to face the camera
-    pub fn billboard_y(&mut self, cam: &mut crate::Camera)
+    pub fn billboard_y(&mut self, cam: &mut crate::CameraData)
     {
         self.transform.orientation = cam.orientation();
         self.transform.orientation.y *= -1.;
@@ -39,7 +42,7 @@ impl SpriteInstance
 
     #[inline]
     /// rotates along the x and y axis to face the camera
-    pub fn billboard_xy(&mut self, cam: &mut crate::Camera)
+    pub fn billboard_xy(&mut self, cam: &mut crate::CameraData)
     {
         self.transform.orientation = cam.orientation().inverse()
     }
@@ -276,7 +279,7 @@ impl SpriteBinding
     /// # Panics
     ///
     /// Panics if the path is not found
-    pub fn from_loader<T>(loader: crate::SpriteLoader<T>) -> Self
+    pub fn from_loader<T>(ctx: crate::ContextHandle, loader: crate::SpriteLoader<T>) -> Self
         where
             T: Into<std::ffi::OsString> + AsRef<std::path::Path>
     {
@@ -351,7 +354,9 @@ impl SpriteBinding
             depth_or_array_layers: 1
         };
 
-        let texture = crate::create_texture
+        let cxt_read = ctx.data.read().expect("woah you panicked, cool");
+
+        let texture = cxt_read.create_texture
         (
             wgpu::TextureDescriptor
             {
@@ -368,7 +373,7 @@ impl SpriteBinding
             }
         );
 
-        crate::write_texture
+        cxt_read.write_texture
         (
             wgpu::ImageCopyTexture 
             {
@@ -388,7 +393,7 @@ impl SpriteBinding
         );
 
         let view = texture.create_view(&Default::default());
-        let sampler = crate::create_sampler
+        let sampler = cxt_read.create_sampler
         (
             wgpu::SamplerDescriptor
             {
@@ -467,10 +472,12 @@ impl SpriteBinding
         {
             binding: Box::new(SpriteGpuBinding::new
             (
+                cxt_read,
                 &instances, &vertices, &uvs, id.as_ref().as_os_str(), &texture
             )),
             instances,
             texture,
+            ctx,
         }
         
     } 
@@ -486,6 +493,7 @@ impl SpriteBinding
             instances: (&mut self.instances).into(),
             instance_buffer: &self.binding.instance_buffer.0,
             index: 0,
+            ctx: self.ctx.clone(),
         }
     }
 
@@ -501,7 +509,7 @@ impl SpriteBinding
         self.texture.size()
     }
 
-    pub fn add_instances(&mut self, mut new_instances: Vec<SpriteInstance>)
+    pub fn add_instances(&mut self, ctx: &crate::ContextHandleData, mut new_instances: Vec<SpriteInstance>)
     {
         // we add the new instances
         self.instances.append(&mut new_instances);         
@@ -511,7 +519,7 @@ impl SpriteBinding
             .map(|f| f.as_raw())
             .collect();
 
-        crate::write_buffer(&self.binding.instance_buffer.0, &data)
+        ctx.write_buffer(&self.binding.instance_buffer.0, &data)
     }
 }
 
@@ -532,11 +540,12 @@ impl SpriteGpuBinding
 {
     fn new
     (
+        ctx_read: std::sync::RwLockReadGuard<'_, crate::ContextHandleData>,
         instances: &[SpriteInstance], vertices: &[[f32;2]], uvs: &[[f32;2]],
-        id: &std::ffi::OsStr, texture : &crate::Texture
+        id: &std::ffi::OsStr, texture: &crate::Texture
     ) -> Self
     {
-        let uvs_storage_buffer = crate::create_buffer_init
+        let uvs_storage_buffer = ctx_read.create_buffer_init
         (
             wgpu::util::BufferInitDescriptor
             {
@@ -548,7 +557,7 @@ impl SpriteGpuBinding
 
         Self
         {
-            vertex_buffer: crate::create_buffer_init
+            vertex_buffer: ctx_read.create_buffer_init
             (
                 wgpu::util::BufferInitDescriptor
                 {
@@ -565,7 +574,7 @@ impl SpriteGpuBinding
                     .collect::<Vec<SpriteInstanceRaw>>();
 
                 (
-                    crate::create_buffer_init
+                    ctx_read.create_buffer_init
                     (
                         wgpu::util::BufferInitDescriptor
                         {
@@ -577,10 +586,10 @@ impl SpriteGpuBinding
                     instances.len().try_into().expect("expected a little less instances")
                 )
             },
-            bindgroup: crate::create_bindgroup(wgpu::BindGroupDescriptor
+            bindgroup: ctx_read.create_bindgroup(wgpu::BindGroupDescriptor
             {
                 label: Some(&("sprite sheet bindgroup, id: ".to_owned() + &id.to_string_lossy())),
-                layout: &bindgroup_layout(),
+                layout: &bindgroup_layout(&ctx_read),
                 entries: 
                 &[
                     wgpu::BindGroupEntry
@@ -697,6 +706,7 @@ pub struct SpriteIterMut<'a>
 {
     instances: core::ptr::NonNull<Vec<SpriteInstance>>,
     instance_buffer: &'a wgpu::Buffer,
+    ctx: crate::ContextHandle,
 
     index: usize
 }
@@ -736,7 +746,10 @@ impl Drop for SpriteIterMut<'_>
                 .map(SpriteInstance::as_raw)
                 .collect::<Vec<SpriteInstanceRaw>>();
 
-            crate::write_buffer(self.instance_buffer, &instances);
+            self.ctx.data
+                .write()
+                .expect("failed to update instance buffer")
+                .write_buffer(self.instance_buffer, &instances);
         }
     }
 }
@@ -748,9 +761,9 @@ pub(crate) const SPRITE_INDICES: [u16; 6] =
 ];
 
 /// the bindgroup layout of the sprite
-pub(super) fn bindgroup_layout() -> wgpu::BindGroupLayout
+pub(super) fn bindgroup_layout(ctx_read: &std::sync::RwLockReadGuard<crate::ContextHandleData>) -> wgpu::BindGroupLayout
 {
-    crate::create_bindgroup_layout(wgpu::BindGroupLayoutDescriptor 
+    ctx_read.create_bindgroup_layout(wgpu::BindGroupLayoutDescriptor 
     {
         entries:
         &[

@@ -4,7 +4,7 @@ pub struct AppHandler
 {
     pub input: input::InputHandler,
     /// the application's renderer tasked with drawing to the screen
-    pub renderer: rendering::RendererHandler,
+    pub renderer: rendering::RendererData,
     /// is the window focused
     pub focused: bool
 }
@@ -16,7 +16,7 @@ impl AppHandler
         Self
         {
             input: Default::default(),
-            renderer: rendering::RendererHandler::new(window),
+            renderer: rendering::RendererData::new(window),
             focused: true
         }
     }

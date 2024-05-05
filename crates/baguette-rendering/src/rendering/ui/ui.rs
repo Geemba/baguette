@@ -12,7 +12,7 @@ pub use egui::*;
 
 pub struct Ui<'a>
 {
-    handle: &'a UiHandle
+    handle: &'a UiData
 }
 
 impl Ui<'_>
@@ -23,16 +23,16 @@ impl Ui<'_>
     }
 }
 
-impl<'a> From<&'a UiHandle> for Ui<'a>
+impl<'a> From<&'a UiData> for Ui<'a>
 {
-    fn from(handle: &'a UiHandle) -> Self
+    fn from(handle: &'a UiData) -> Self
     {
         Self { handle }
     }
 }
 
 /// Ui renderer
-pub struct UiHandle
+pub struct UiData
 {
     state: egui_winit::State,
     renderer: egui_wgpu::Renderer,
@@ -49,16 +49,16 @@ struct ScreenData
     scale: f32
 }
 
-impl UiHandle
+impl UiData
 {
-    pub fn new(width: u32, height: u32, scale: f32) -> Self
+    pub fn new(ctx: &crate::ContextHandleData, width: u32, height: u32, scale: f32) -> Self
     {
         Self
         {
             state: egui_winit::State::new(Some(scale), None),
             renderer: egui_wgpu::Renderer::new
             (
-                crate::device(), wgpu::TextureFormat::Bgra8UnormSrgb, None, 1
+                &ctx.device, wgpu::TextureFormat::Bgra8UnormSrgb, None, 1
             ),
             screen: ScreenData
             {
@@ -74,7 +74,8 @@ impl UiHandle
     (
         &'a mut self, pass: &mut wgpu::RenderPass<'a>,
         window: &crate::Window,
-        target: &egui_winit::winit::event_loop::EventLoopWindowTarget<()>
+        target: &egui_winit::winit::event_loop::EventLoopWindowTarget<()>,
+        ctx: &std::sync::RwLockReadGuard<'_, crate::ContextHandleData>
     )
     {
         let id = &self.state.ctx.viewport_id();
@@ -95,13 +96,13 @@ impl UiHandle
         );
         for (id, ref delta) in output.textures_delta.set
         {
-            self.renderer.update_texture(crate::device(), crate::queue(), id, delta)
+            self.renderer.update_texture(&ctx.device, &ctx.queue, id, delta)
         }
 
         self.renderer.update_buffers
         (
-            crate::device(), crate::queue(),
-            &mut crate::create_command_encoder("update egui buffers"),
+            &ctx.device, &ctx.queue,
+            &mut ctx.create_command_encoder("update egui buffers"),
             clipped_primitives, self.screen
         );
 

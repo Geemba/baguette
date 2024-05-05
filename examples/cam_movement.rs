@@ -10,7 +10,7 @@ fn main()
 struct TestA
 {
     timer: u8,
-    cam: &'static mut Camera,
+    cam: Camera,
     sprite: Sprite,
 }
 
@@ -21,7 +21,7 @@ impl State for TestA
         Self
         {
             timer: 0,
-            cam: Camera::main_mut(),
+            cam: Camera::get(&mut app.renderer),
             sprite: app.renderer.load_sprite
             (
                 SpriteLoader::SpriteSheet

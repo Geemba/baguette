@@ -8,12 +8,16 @@ pub enum Passes
 
 impl Passes
 {
-    pub(crate) fn draw<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>) -> Result<(), wgpu::SurfaceError>
+    pub(crate) fn draw<'a>
+    (
+        &'a self, pass: &mut wgpu::RenderPass<'a>, camera: &'a camera::CameraData
+    )
+    -> Result<(), wgpu::SurfaceError>
     {
         match self
         {
             Self::SpriteSheet(pass) => pass as &dyn RenderPass,
-        }.draw(pass)
+        }.draw(pass, camera)
     }
 }
 
@@ -42,12 +46,13 @@ impl RenderPasses
 pub trait RenderPass
 {
     /// describes how to initialize this pass
-    fn add_pass() -> Passes where Self: Sized;
+    fn add_pass(ctx: ContextHandle) -> Passes where Self: Sized;
     
     #[allow(clippy::cast_possible_truncation)]
     fn draw<'a>
     (
         &'a self,
-        pass: &mut wgpu::RenderPass<'a>        
+        pass: &mut wgpu::RenderPass<'a>,
+        camera: &'a camera::CameraData
     ) -> Result<(), wgpu::SurfaceError>;
 }

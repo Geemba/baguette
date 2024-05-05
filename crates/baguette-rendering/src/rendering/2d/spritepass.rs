@@ -6,8 +6,6 @@ pub struct SpritePass
     render_pipeline: wgpu::RenderPipeline,
     buffers: Vec<std::ptr::NonNull<crate::sprite::SpriteGpuBinding>>,
     index_buffer: wgpu::Buffer,
-
-    camera_bind_group: &'static wgpu::BindGroup
 }
 
 impl Drop for SpritePass
@@ -32,28 +30,27 @@ impl Drop for SpritePass
 
 impl SpritePass
 {
-    pub fn new(backface_culling: bool, cam: Option<&'static Camera>) -> Self
+    pub fn new(backface_culling: bool, ctx: ContextHandle) -> Self
     {
-        let cam = cam.unwrap_or_else(Camera::main);
-
-        let shader = create_shader_module(wgpu::ShaderModuleDescriptor 
+        let ctx_read = ctx.read().unwrap();
+        let shader = ctx_read.create_shader_module(wgpu::ShaderModuleDescriptor 
         {
             label: Some("sprite shader"),
             source: wgpu::ShaderSource::Wgsl(include_str!(r"sprite.wgsl").into())
         });
 
-        let pipeline_layout = create_pipeline_layout(wgpu::PipelineLayoutDescriptor
+        let pipeline_layout = ctx_read.create_pipeline_layout(wgpu::PipelineLayoutDescriptor
         {
             label: Some("2d sprite pipeline layout"),
             bind_group_layouts:
             &[
-                &bindgroup_layout(),
-                &cam.binding.layout
+                &bindgroup_layout(&ctx_read),
+                &camera_bindgroup_layout(&ctx_read)
             ],
             push_constant_ranges: &[]
         });
 
-        let render_pipeline = create_render_pipeline(wgpu::RenderPipelineDescriptor 
+        let render_pipeline = ctx_read.create_render_pipeline(wgpu::RenderPipelineDescriptor 
         {
             label: Some("2d sprite pipeline"),
             layout: Some(&pipeline_layout),
@@ -98,7 +95,7 @@ impl SpritePass
                 &[
                     Some(wgpu::ColorTargetState
                     {
-                        format: config().format,
+                        format: ctx_read.screen.config.format,
                         write_mask: wgpu::ColorWrites::ALL,
                         blend: Some(wgpu::BlendState::ALPHA_BLENDING)
                     })
@@ -126,9 +123,8 @@ impl SpritePass
         Self
         {
             render_pipeline,
-            camera_bind_group: &cam.binding.bindgroup,
             buffers: vec![],
-            index_buffer: create_buffer_init
+            index_buffer: ctx_read.create_buffer_init
             (
                 wgpu::util::BufferInitDescriptor 
                 {
@@ -142,11 +138,11 @@ impl SpritePass
 
     /// adds a new sprite to render, if another costructed [Sprite] has all the same parameters and texture
     /// you should add a new [SpriteInstance] inside of that struct using the instance parameter
-    pub fn add<T>(&mut self, loader: SpriteLoader<T>) -> Sprite
+    pub fn add<T>(&mut self, ctx: crate::ContextHandle, loader: SpriteLoader<T>) -> Sprite
         where
             T: Into<std::ffi::OsString> + AsRef<std::path::Path>
     {
-        let mut sprite = SpriteBinding::from_loader(loader);
+        let mut sprite = SpriteBinding::from_loader(ctx ,loader);
 
         self.buffers.push((sprite.binding.as_mut()).into());
 
@@ -161,16 +157,16 @@ impl SpritePass
 
 impl RenderPass for SpritePass
 {
-    fn draw<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>) -> Result<(), wgpu::SurfaceError>
+    fn draw<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>, camera: &'a camera::CameraData) -> Result<(), wgpu::SurfaceError>
     {
         pass.set_pipeline(&self.render_pipeline);
-        
+
         for binding in self.buffers.iter()
         {
             let binding = unsafe { binding.as_ref() };
 
             pass.set_bind_group(0, &binding.bindgroup, &[]);
-            pass.set_bind_group(1, self.camera_bind_group, &[]);
+            pass.set_bind_group(1, &camera.binding.bindgroup, &[]);
     
             pass.set_vertex_buffer(0, binding.vertex_buffer.slice(..));
             pass.set_vertex_buffer(1, binding.instance_buffer.0.slice(..));
@@ -182,9 +178,9 @@ impl RenderPass for SpritePass
         Ok(())
     }
 
-    fn add_pass() -> Passes where Self: Sized
+    fn add_pass(ctx: ContextHandle) -> Passes where Self: Sized
     {
-        Passes::SpriteSheet(Self::new(false, None))
+        Passes::SpriteSheet(Self::new(false, ctx))
     }
 }
 

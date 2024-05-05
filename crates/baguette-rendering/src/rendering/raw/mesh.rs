@@ -1,16 +1,16 @@
 #[deprecated]
 pub struct Mesh
 {
-    pub instances : Vec<super::Transform>,
-    pub vertices : Vec<super::Vertex>,
-    pub indices : Vec<u16>
+    pub instances: Vec<super::Transform>,
+    pub vertices: Vec<super::Vertex>,
+    pub indices: Vec<u16>
 }
 #[allow(deprecated)]
 impl Mesh
 {
-    pub fn create_vertex_buffer(&self) -> wgpu::Buffer
+    pub fn create_vertex_buffer(&self, ctx: crate::ContextHandleData) -> wgpu::Buffer
     {
-        crate::create_buffer_init
+        ctx.create_buffer_init
         (
             wgpu::util::BufferInitDescriptor
             {
@@ -21,9 +21,9 @@ impl Mesh
         )
     }
 
-    pub fn index_buffer(&self) -> wgpu::Buffer
+    pub fn index_buffer(&self, ctx: crate::ContextHandleData) -> wgpu::Buffer
     {
-        crate::create_buffer_init
+        ctx.create_buffer_init
         (
             wgpu::util::BufferInitDescriptor 
             {
@@ -34,11 +34,11 @@ impl Mesh
         )
     }
 
-    pub fn create_instance_buffer(&self) -> wgpu::Buffer
+    pub fn create_instance_buffer(&self, ctx: crate::ContextHandleData) -> wgpu::Buffer
     {
         let instances = self.instances.iter().map(|f| f.as_raw()).collect::<Vec<crate::TransformRaw>>();
 
-        crate::create_buffer_init
+        ctx.create_buffer_init
         (
             wgpu::util::BufferInitDescriptor
             {

@@ -1,9 +1,34 @@
+use std::{cell::RefCell, ops::Deref, sync::Arc};
 use crate::*;
 
-static mut CAMERAS: std::vec::Vec<Camera> = vec![];
+#[derive(Clone)]
+pub struct Camera
+{
+    pub(crate) data: Arc<RefCell<CameraData>>
+}
+
+impl Camera
+{
+    /// retrieve the camera from this renderer, 
+    /// you can have only one camera for now
+    pub fn get(renderer: &mut Renderer) -> Self
+    {
+        renderer.get_camera()
+    }
+
+    pub fn position(&self)-> Vec3
+    {
+        self.data.borrow().position()
+    }
+
+    pub fn set_position(&mut self, position: math::Vec3)
+    {
+        self.data.borrow_mut().set_position(position)
+    }
+}
 
 /// a scene camera
-pub struct Camera
+pub(crate) struct CameraData
 {
     pub projection: CameraProjection,
     pub binding: GpuBinding
@@ -13,20 +38,12 @@ pub struct GpuBinding
 {
     pub buffer: wgpu::Buffer,
     pub bindgroup: wgpu::BindGroup,
-    pub layout: wgpu::BindGroupLayout
+    //pub layout: wgpu::BindGroupLayout
 }
 
-#[must_use] fn get_binding_data() -> GpuBinding
+pub(crate) fn camera_bindgroup_layout(ctx: &ContextHandleData) -> wgpu::BindGroupLayout
 {
-    let buffer = create_buffer(wgpu::BufferDescriptor
-    {
-        label: Some("Camera Buffer"),
-        size: core::mem::size_of::<[[f32; 4]; 4]>() as u64,
-        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        mapped_at_creation: false
-    });
-
-    let layout = create_bindgroup_layout(wgpu::BindGroupLayoutDescriptor 
+    ctx.create_bindgroup_layout(wgpu::BindGroupLayoutDescriptor 
     {
         entries: &[wgpu::BindGroupLayoutEntry
         {
@@ -41,11 +58,22 @@ pub struct GpuBinding
             count: None,
         }],
         label: Some("camera_bindgroup_layout"),
+    })
+}
+
+#[must_use] fn get_binding_data(ctx: &ContextHandleData) -> GpuBinding
+{
+    let buffer = ctx.create_buffer(wgpu::BufferDescriptor
+    {
+        label: Some("Camera Buffer"),
+        size: core::mem::size_of::<[[f32; 4]; 4]>() as u64,
+        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false
     });
 
-    let bind_group = create_bindgroup(wgpu::BindGroupDescriptor
+    let bind_group = ctx.create_bindgroup(wgpu::BindGroupDescriptor
     {
-        layout: &layout,
+        layout: &camera_bindgroup_layout(ctx),
         entries:
         &[
             wgpu::BindGroupEntry
@@ -57,99 +85,33 @@ pub struct GpuBinding
         label: Some("camera_bindgroup"),
     });
 
-    GpuBinding { buffer, bindgroup: bind_group, layout }
+    GpuBinding { buffer, bindgroup: bind_group }
 }
 
-impl Default for Camera
+impl CameraData
 {
-    fn default() -> Self
+    pub(crate) fn new(ctx: &ContextHandleData) -> Self
     {
         Self
         {
-            projection: CameraProjection::default(),       
-            binding: get_binding_data()
-        }
-    }
-}
-
-/// returns the main camera as mutable if there is one, or returns a new instance and sets it as main
-#[inline]
-#[must_use] pub fn main_mut() -> &'static mut Camera
-{
-    Camera::main_mut()
-}
-
-/// returns the main camera if there is one, or returns a new instance and sets it as main
-#[inline]
-#[must_use] pub fn main() -> &'static Camera
-{
-    Camera::main()
-}
-
-//static
-impl Camera
-{   
-    /// returns all existing cameras in the scene
-    pub fn all() -> &'static Vec<Self>
-    {
-        unsafe { &CAMERAS }
-    }
-
-    /// returns all existing cameras in the scene
-    fn all_mut() -> &'static mut Vec<Self>
-    {
-        unsafe { &mut CAMERAS }
-    }
-    
-    /// returns the main camera if there is one, otherwise returns a new instance and sets it as main
-    pub fn main() -> &'static Self
-    {
-        Self::main_mut()
-    }
-    /// returns the main camera if there is one, otherwise returns a new instance and sets it as main
-    pub fn main_mut() -> &'static mut Self
-    {
-        unsafe
-        {
-            match CAMERAS.get_mut(0) 
-            {
-                Some(cam) => cam,
-                None => 
-                {
-                    CAMERAS.push(Camera::default());
-                    &mut CAMERAS[0]
-                }
-            }   
+            projection: CameraProjection::new(&ctx.screen.config),       
+            binding: get_binding_data(ctx)
         }
     }
 
-    pub(crate) fn resize_all(aspect: f32)
+    pub(crate) fn resize(&mut self, aspect: f32)
     {
-        for cam in Self::all_mut().iter_mut()
-        {
-            cam.projection.aspect = aspect;
-            cam.projection.rebuild_projection(aspect)
-        }
+        self.projection.aspect = aspect;
+        self.projection.rebuild_projection(aspect)        
     }
 
-    pub(crate) fn update_all()
-    {
-        for cam in Self::all_mut().iter_mut()
-        {
-            cam.update()
-        }
-    }
-}
-
-impl Camera
-{
-    pub(crate) fn update(&mut self)
+    pub(crate) fn update(&mut self, ctx: &std::sync::RwLockReadGuard<'_, renderer::ContextHandleData>)
     {
         // we rebuild the projection and pass it to the gpu as array
         let uniform = self.projection.screen_space_matrix().to_cols_array_2d();
     
         // and we queue a buffer write to update the actual matrix on the gpu
-        crate::write_buffer(&self.binding.buffer, &uniform);
+        ctx.write_buffer(&self.binding.buffer, &uniform);
     }
 
     #[inline]
@@ -255,11 +217,11 @@ pub struct CameraProjection
     far_clip: f32
 }
 
-impl Default for CameraProjection
+impl CameraProjection
 {
-    fn default() -> Self 
+    fn new(config: &wgpu::SurfaceConfiguration) -> Self 
     {
-        let aspect = config().width as f32 / config().height as f32;
+        let aspect = config.width as f32 / config.height as f32;
         let fovy = 45f32.to_radians();
         let near_clip = 0.01;
         let far_clip = 500.;
@@ -282,10 +244,7 @@ impl Default for CameraProjection
             far_clip
         }
     }
-}
 
-impl CameraProjection
-{
     #[inline]
     /// projection needs to be rebuild when any of these values change : `fovy`, `aspect`, `near_clip`, `far_clip`
     /// or projection mode is changed

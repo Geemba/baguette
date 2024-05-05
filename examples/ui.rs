@@ -11,7 +11,7 @@ fn main()
 
 struct TestA
 {
-    cam: &'static mut Camera,
+    cam: Camera,
     sprite: Sprite,
 }
 
@@ -21,7 +21,7 @@ impl State for TestA
     {
         Self
         {
-            cam: Camera::main_mut(),
+            cam: Camera::get(&mut app.renderer),
             sprite: app.renderer.load_sprite
             (
                 SpriteLoader::Sprite
