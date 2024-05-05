@@ -77,13 +77,13 @@ pub struct Empty;
 /// ```
 macro_rules! transitions
 {
-    [$($lbracket:tt $closure:tt $rbracket:tt $predicate:expr => $type:ident),*] =>
+    [$($lbracket:tt $first_closure:tt, $second_closure:tt $rbracket:tt $predicate:expr => $type:ident),*] =>
     {
-       || vec![$(($lbracket $closure $rbracket $predicate, $type::id())),*]
+       || vec![$(($lbracket $first_closure, $second_closure $rbracket $predicate, $type::id())),*]
     };
 }
 
-pub trait OnBeforeScreenRedraw : Sync
-{
-    fn on_before_screen_redraw(&mut self);
-}
+//pub trait OnBeforeScreenRedraw : Sync
+//{
+//    fn on_before_screen_redraw(&mut self);
+//}
