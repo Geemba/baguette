@@ -1,4 +1,4 @@
-use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard};
 
 use crate::*;
 use input::winit::window::Window;
@@ -70,12 +70,6 @@ impl RendererData
     fn camera(&mut self) -> std::cell::RefMut<CameraData>
     {
         self.camera.data.borrow_mut()
-    }
-
-    fn ctx(&mut self)
-        -> Result<RwLockWriteGuard<ContextHandleData>, PoisonError<RwLockWriteGuard<ContextHandleData>>>
-    {
-        self.ctx.data.write()
     }
 
     pub fn resize(&mut self, (width,height): (u32,u32))
@@ -670,7 +664,7 @@ impl ContextHandle
     }
 }
 
-pub(super) struct ContextHandleData
+pub struct ContextHandleData
 {
     pub instance: wgpu::Instance,
     pub device: wgpu::Device,
@@ -678,7 +672,7 @@ pub(super) struct ContextHandleData
     pub screen: Screen
 }
 
-pub(crate) struct Screen
+pub struct Screen
 {
     pub surface: Option<wgpu::Surface>,
     pub config: wgpu::SurfaceConfiguration
@@ -728,48 +722,11 @@ impl ContextHandleData
     }
 }
 
-//static mut STATIC_DATA : once_cell::sync::OnceCell<ContextHandle> = once_cell::sync::OnceCell::new();
-
-#[inline]
-/// gets a reference to the instance of wgpu
-/// 
-/// will mostly be useful to create a surface
-/// # Panics
-///
-/// panics if the static data is not initialized yet.
-pub fn instance(ctx: &ContextHandleData) -> &wgpu::Instance
-{
-    &ctx.instance
-}
-
 #[inline]
 /// gets a reference to the device instance
-/// # Panics
-///
-/// panics if the static data is not initialized yet.
-pub fn device(ctx: &ContextHandleData) -> &wgpu::Device
+pub(crate) fn device(ctx: &ContextHandleData) -> &wgpu::Device
 {
     &ctx.device
-}
-
-#[inline]
-/// gets a mutable reference to the surface configuration
-/// # Panics
-///
-/// panics if the static data is not initialized yet.
-pub fn config(ctx: &mut ContextHandleData) -> &mut wgpu::SurfaceConfiguration
-{
-    &mut ctx.screen.config
-}
-
-#[inline]
-/// gets a reference to the surface if it exists
-/// # Panics
-///
-/// panics if the static data is not initialized yet.
-pub fn surface(ctx: &ContextHandleData) -> Option<&wgpu::Surface>
-{
-    ctx.screen.surface.as_ref()
 }
 
 #[inline]
@@ -777,10 +734,7 @@ pub fn surface(ctx: &ContextHandleData) -> Option<&wgpu::Surface>
 /// 
 /// A Queue executes recorded `CommandBuffer` objects and provides convenience methods 
 /// for writing to buffers and textures
-/// # Panics
-///
-/// panics if the static data is not initialized yet.
-pub fn queue(ctx: &ContextHandleData) -> &wgpu::Queue
+pub(crate) fn queue(ctx: &ContextHandleData) -> &wgpu::Queue
 {
     &ctx.queue
 }
