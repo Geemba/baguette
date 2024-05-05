@@ -69,7 +69,7 @@ impl ActiveState
     }
 }
 
-/// unactive states holds data to be able to reactivate itself
+/// unactive states holds data to be able to reactivate themselves
 pub struct UnactiveState
 {
     id: StateId,
