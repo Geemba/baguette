@@ -15,36 +15,6 @@ pub type WindowTheme = window::Theme;
 /// a dynamically dispatched fsm that is still unactive
 pub(crate) type UninitDynFsm = FsmData<UnactiveState>;
 
-
-//enum FsmState
-//{
-//    Active(Fsm<ActiveState>),
-//    Unactive(Fsm<UnactiveState>),
-//    Dummy
-//}
-//
-//impl FsmState
-//{
-//    fn build(&mut self, app: &mut App)
-//    {
-//        *self = match core::mem::replace(self, Self::Dummy)
-//        {
-//            FsmState::Unactive(unactive) => FsmState::Active(unactive.build(app)),
-//            FsmState::Active(active) => FsmState::Active(active),
-//            _ => unimplemented!(),
-//        }
-//    }
-//
-//    #[inline]
-//    fn update(&mut self, mut app: App)
-//    {
-//        if let FsmState::Active(fsm) = self 
-//        {
-//            fsm.update(&mut app)
-//        }
-//    }
-//}
-
 #[must_use]
 pub struct AppBuilder<T>
 {
@@ -77,28 +47,6 @@ pub type Transition<St> = (fn(&mut App, &St) -> bool, StateId);
 
 impl AppBuilder<UninitDynFsm>
 {
-    ///// runs a new `app` using `custom dispatch` to store the states
-    ///// 
-    ///// # panics
-    ///// 
-    ///// panics if any state isn't subsequently added
-    //pub fn with_dispatch<V : Dispatcher>(self) -> AppBuilder<UninitStaticFsm<V>>
-    //{
-    //    assert!
-    //    (
-    //        self.fsm.is_empty(),"set dispatch before adding your states 👮"
-    //    );
-    //    AppBuilder
-    //    {
-    //        wbuilder: self.wbuilder,
-    //        focus: self.focus,
-    //        // when a new static fsm is added it receives en empty state
-    //        // as placeholder which is not able to be dispatched and therefore
-    //        // throws a panic, so it's necessary to pass states to replace it
-    //        fsm: UninitStaticFsm::new()
-    //    }
-    //}
-
     /// adds a `state` to the `fsm` with the provided transitions 
     /// # examples
     /// ```
@@ -143,86 +91,6 @@ impl AppBuilder<UninitDynFsm>
         let eventloop = event_loop::EventLoop::new().unwrap();
         let _ = eventloop.run_app(&mut AppHandler::new(self.w_attributes, Fsm::Unactive(self.fsm)));
     }
-            //let mut app = AppHandler::new
-            //(
-            //    eventloop.run_app(app)
-            //    self.wbuilder
-            //        .build(&eventloop)
-            //        .expect("window creation has failed")
-            //);
-
-            // we should not start our states until event::resumed is invoked,
-            // because our renderer is not initialized until that event,
-        //    let mut fsm = FsmState::Unactive(self.fsm);
-
-        //    eventloop.run
-        //    (
-        //        move |event: winit::event::Event<()>, target|
-    
-        //        match event
-        //        {
-        //            winit::event::Event::WindowEvent { event, .. } =>
-        //            {
-        //                app.check_input(&event);
-
-        //                match event
-        //                {
-        //                    WindowEvent::RedrawRequested if app.focused => 
-        //                    {
-        //                        // begin gathering input before user update
-        //                        app.renderer.begin_egui_frame();
-
-        //                        fsm.update(app.to_user());
-
-        //                        if let Some(err) = app.renderer.render(target).err()
-        //                        {
-        //                            match err
-        //                            {
-        //                                // Reconfigure the surface if it's lost or outdated
-        //                                rendering::SurfaceError::Lost | rendering::SurfaceError::Outdated => println!("surface lost or outdated, reconnecting"),
-
-        //                                // The system is out of memory, we should probably quit
-        //                                rendering::SurfaceError::OutOfMemory => target.exit(),
-
-        //                                rendering::SurfaceError::Timeout => println!("surface timeout")
-        //                            }
-        //                        }
-        //                        
-        //                        app.renderer.post_render();
-        //                        app.input.flush_released_keys()
-        //                    }
-        //                    
-        //                    WindowEvent::CloseRequested => target.exit(),
-        //                    WindowEvent::Resized(new_size) if new_size.width > 0 && new_size.height > 0 =>
-        //                    {
-        //                        app.renderer.resize(new_size.into())
-        //                    }
-        //                    WindowEvent::Focused(value) => app.focused = value,
-        //                    _ => ()
-        //                }
-
-        //                AppHandler::window(&app).request_redraw()
-        //            }
-
-        //            winit::event::Event::LoopExiting => (/* program exit */),
-
-        //            winit::event::Event::Resumed =>
-        //            {
-        //                app.renderer.resume();
-        //                fsm.build(&mut app.to_user())
-        //            }
-        //            winit::event::Event::Suspended =>
-        //            {
-        //                app.focused = false;
-        //                app.renderer.suspend()
-        //            }
-        //            winit::event::Event::MemoryWarning => target.exit(),
-        //            _ => ()
-        //        }
-        //    )
-        //};
-
-        //pollster::block_on(application).unwrap()
 }
 
 impl<T> AppBuilder<T>
