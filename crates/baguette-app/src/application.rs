@@ -1,5 +1,3 @@
-use std::ops::{Deref, DerefMut};
-
 use input::
 {
     winit::
@@ -44,7 +42,7 @@ impl ApplicationHandler for AppHandler
     {
         //event_loop.create_window(self.window_attributes.clone());
         self.data.renderer.resume(event_loop);
-        self.fsm.resume(&mut self.data.to_user())
+        self.fsm.resume(&mut self.data.to_user_mut())
     }
 
     fn window_event
@@ -64,7 +62,7 @@ impl ApplicationHandler for AppHandler
                 // begin gathering input before user update
                 self.data.renderer.begin_egui_frame();
                 
-                self.fsm.update(&mut self.data.to_user());
+                self.fsm.update(&mut self.data.to_user_mut());
 
                 if let Some(err) = self.data.renderer.render(target).err()
                 {
@@ -142,8 +140,8 @@ impl AppData
         }
     }
 
-    /// return a wrapper type that doesn't contain the engine critical methods 
-    pub fn to_user(&mut self) -> App
+    /// return a wrapper that doesn't contain engine implementation methods 
+    pub fn to_user_mut(&mut self) -> App
     {
         App
         {
