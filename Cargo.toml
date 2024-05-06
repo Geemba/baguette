@@ -7,9 +7,6 @@ keywords = ["gamedev", "graphics"]
 [workspace.package]
 license = "MIT OR Apache-2.0"
 
-[dependencies]
-pollster = "*"
-
 app = { package = "baguette-app", path = "crates/baguette-app" }
 rendering = { package = "baguette-rendering", path = "crates/baguette-rendering" }
 math = { package = "baguette-math", path = "crates/baguette-math" }
