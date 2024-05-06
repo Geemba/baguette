@@ -93,7 +93,7 @@ impl UnactiveState
     }
 }
 
-pub struct Fsm<T>
+pub struct FsmData<T>
 {
     // this will be the first state that enters the statemachine
     current : T,
@@ -101,7 +101,7 @@ pub struct Fsm<T>
     states : ahash::AHashMap<StateId, UnactiveState>
 }
 
-impl Default for Fsm<UnactiveState>
+impl Default for FsmData<UnactiveState>
 {
     fn default() -> Self 
     {
@@ -118,7 +118,7 @@ impl Default for Fsm<UnactiveState>
     }
 }
 
-impl Fsm<UnactiveState>
+impl FsmData<UnactiveState>
 {
     /// adds a state to the fsm
     /// 
@@ -149,9 +149,9 @@ impl Fsm<UnactiveState>
         }
     }
 
-    pub fn build(self, app: &mut App) -> Fsm<ActiveState>
+    pub fn build(self, app: &mut App) -> FsmData<ActiveState>
     {
-        Fsm
+        FsmData
         {
             current: self.current.into_active(app), states : self.states
         }
@@ -163,7 +163,7 @@ impl Fsm<UnactiveState>
     }
 }
 
-impl Fsm<ActiveState>
+impl FsmData<ActiveState>
 {
     #[inline]
     pub fn update(&mut self, app: &mut App)
@@ -172,9 +172,9 @@ impl Fsm<ActiveState>
 
         match &self.current.event
         {  
-            StateEvent::Update => if let Some(transition) = self.current.avaiable_transition(app)
+            StateEvent::Update => if let Some((.., state_id)) = self.current.avaiable_transition(app)
             {
-                self.current.event = StateEvent::Exit(transition.1)
+                self.current.event = StateEvent::Exit(*state_id)
             }
             StateEvent::Enter => self.current.event = StateEvent::Update,
 

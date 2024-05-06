@@ -10,50 +10,48 @@ pub use rendering;
 pub use math;
 
 use app::*;
-use input::{*,winit::*};
-
-
+use input::winit::*;
 
 pub type WindowTheme = window::Theme;
 
 /// a dynamically dispatched fsm that is still unactive
-pub(crate) type UninitDynFsm = dynamic::Fsm<dynamic::UnactiveState>;
+pub(crate) type UninitDynFsm = FsmData<UnactiveState>;
 
 
-enum FsmState
-{
-    Active(Fsm<ActiveState>),
-    Unactive(Fsm<UnactiveState>),
-    Dummy
-}
-
-impl FsmState
-{
-    fn build(&mut self, app: &mut App)
-    {
-        *self = match core::mem::replace(self, Self::Dummy)
-        {
-            FsmState::Unactive(unactive) => FsmState::Active(unactive.build(app)),
-            FsmState::Active(active) => FsmState::Active(active),
-            _ => unimplemented!(),
-        }
-    }
-
-    #[inline]
-    fn update(&mut self, mut app: App)
-    {
-        if let FsmState::Active(fsm) = self 
-        {
-            fsm.update(&mut app)
-        }
-    }
-}
+//enum FsmState
+//{
+//    Active(Fsm<ActiveState>),
+//    Unactive(Fsm<UnactiveState>),
+//    Dummy
+//}
+//
+//impl FsmState
+//{
+//    fn build(&mut self, app: &mut App)
+//    {
+//        *self = match core::mem::replace(self, Self::Dummy)
+//        {
+//            FsmState::Unactive(unactive) => FsmState::Active(unactive.build(app)),
+//            FsmState::Active(active) => FsmState::Active(active),
+//            _ => unimplemented!(),
+//        }
+//    }
+//
+//    #[inline]
+//    fn update(&mut self, mut app: App)
+//    {
+//        if let FsmState::Active(fsm) = self 
+//        {
+//            fsm.update(&mut app)
+//        }
+//    }
+//}
 
 #[must_use]
 pub struct AppBuilder<T>
 {
     /// keeps track of how to create the application window
-    wbuilder: window::WindowBuilder,
+    w_attributes: window::WindowAttributes,
     /// whether the app window will be focused or not
     focus: bool,
     fsm: T
@@ -71,7 +69,7 @@ pub fn new() -> AppBuilder<UninitDynFsm>
 {
     AppBuilder
     {
-        wbuilder: window::WindowBuilder::new(),
+        w_attributes: window::Window::default_attributes(),
         fsm: Default::default(),
         focus: true
     }
@@ -141,126 +139,124 @@ impl AppBuilder<UninitDynFsm>
         self
     }
     
-    /// run the loop, open the window, all that kind of stuff,
-    /// everything after this call will be unreachable
+    /// run the event loop
     pub fn run(self)
     {
-        let application = async
-        {
-            let eventloop = event_loop::EventLoopBuilder::default().build().unwrap();
-
-            let mut app = AppHandler::new
-            (
-                self.wbuilder
-                    .build(&eventloop)
-                    .expect("window creation has failed")
-            );
+        let eventloop = event_loop::EventLoop::new().unwrap();
+        let _ = eventloop.run_app(&mut AppHandler::new(self.w_attributes, Fsm::Unactive(self.fsm)));
+    }
+            //let mut app = AppHandler::new
+            //(
+            //    eventloop.run_app(app)
+            //    self.wbuilder
+            //        .build(&eventloop)
+            //        .expect("window creation has failed")
+            //);
 
             // we should not start our states until event::resumed is invoked,
             // because our renderer is not initialized until that event,
-            let mut fsm = FsmState::Unactive(self.fsm);
+        //    let mut fsm = FsmState::Unactive(self.fsm);
 
-            eventloop.run
-            (
-                move |event: winit::event::Event<()>, target|
+        //    eventloop.run
+        //    (
+        //        move |event: winit::event::Event<()>, target|
     
-                match event
-                {
-                    winit::event::Event::WindowEvent { event, .. } =>
-                    {
-                        app.check_input(&event);
+        //        match event
+        //        {
+        //            winit::event::Event::WindowEvent { event, .. } =>
+        //            {
+        //                app.check_input(&event);
 
-                        match event
-                        {
-                            WindowEvent::RedrawRequested if app.focused => 
-                            {
-                                // begin gathering input before user update
-                                app.renderer.begin_egui_frame();
+        //                match event
+        //                {
+        //                    WindowEvent::RedrawRequested if app.focused => 
+        //                    {
+        //                        // begin gathering input before user update
+        //                        app.renderer.begin_egui_frame();
 
-                                fsm.update(app.to_user());
+        //                        fsm.update(app.to_user());
 
-                                if let Some(err) = app.renderer.render(target).err()
-                                {
-                                    match err
-                                    {
-                                        // Reconfigure the surface if it's lost or outdated
-                                        rendering::SurfaceError::Lost | rendering::SurfaceError::Outdated => println!("surface lost or outdated, reconnecting"),
+        //                        if let Some(err) = app.renderer.render(target).err()
+        //                        {
+        //                            match err
+        //                            {
+        //                                // Reconfigure the surface if it's lost or outdated
+        //                                rendering::SurfaceError::Lost | rendering::SurfaceError::Outdated => println!("surface lost or outdated, reconnecting"),
 
-                                        // The system is out of memory, we should probably quit
-                                        rendering::SurfaceError::OutOfMemory => target.exit(),
+        //                                // The system is out of memory, we should probably quit
+        //                                rendering::SurfaceError::OutOfMemory => target.exit(),
 
-                                        rendering::SurfaceError::Timeout => println!("surface timeout")
-                                    }
-                                }
-                                
-                                app.renderer.post_render();
-                                app.input.flush_released_keys()
-                            }
-                            
-                            WindowEvent::CloseRequested => target.exit(),
-                            WindowEvent::Resized(new_size) if new_size.width > 0 && new_size.height > 0 =>
-                            {
-                                app.renderer.resize(new_size.into())
-                            }
-                            WindowEvent::Focused(value) => app.focused = value,
-                            _ => ()
-                        }
+        //                                rendering::SurfaceError::Timeout => println!("surface timeout")
+        //                            }
+        //                        }
+        //                        
+        //                        app.renderer.post_render();
+        //                        app.input.flush_released_keys()
+        //                    }
+        //                    
+        //                    WindowEvent::CloseRequested => target.exit(),
+        //                    WindowEvent::Resized(new_size) if new_size.width > 0 && new_size.height > 0 =>
+        //                    {
+        //                        app.renderer.resize(new_size.into())
+        //                    }
+        //                    WindowEvent::Focused(value) => app.focused = value,
+        //                    _ => ()
+        //                }
 
-                        AppHandler::window(&app).request_redraw()
-                    }
+        //                AppHandler::window(&app).request_redraw()
+        //            }
 
-                    winit::event::Event::LoopExiting => (/* program exit */),
+        //            winit::event::Event::LoopExiting => (/* program exit */),
 
-                    winit::event::Event::Resumed =>
-                    {
-                        app.renderer.resume();
-                        fsm.build(&mut app.to_user())
-                    }
-                    winit::event::Event::Suspended =>
-                    {
-                        app.focused = false;
-                        app.renderer.suspend()
-                    }
-                    winit::event::Event::MemoryWarning => target.exit(),
-                    _ => ()
-                }
-            )
-        };
+        //            winit::event::Event::Resumed =>
+        //            {
+        //                app.renderer.resume();
+        //                fsm.build(&mut app.to_user())
+        //            }
+        //            winit::event::Event::Suspended =>
+        //            {
+        //                app.focused = false;
+        //                app.renderer.suspend()
+        //            }
+        //            winit::event::Event::MemoryWarning => target.exit(),
+        //            _ => ()
+        //        }
+        //    )
+        //};
 
-        pollster::block_on(application).unwrap()
-    }
+        //pollster::block_on(application).unwrap()
 }
 
 impl<T> AppBuilder<T>
 {
     pub fn set_title(mut self, title: impl Into<String>) -> Self
     {
-        self.wbuilder = self.wbuilder.with_title(title);
+        self.w_attributes = self.w_attributes.with_title(title);
         self
     }
     
     pub fn set_focus(mut self, value: bool) -> Self
     {
-        self.wbuilder = self.wbuilder.with_active(value);
+        self.w_attributes = self.w_attributes.with_active(value);
         self.focus = value;
         self
     }
 
     pub fn set_fullscreen(mut self) -> Self
     {
-        self.wbuilder = self.wbuilder.with_fullscreen(Some(window::Fullscreen::Borderless(None)));
+        self.w_attributes = self.w_attributes.with_fullscreen(Some(window::Fullscreen::Borderless(None)));
         self
     }
 
     pub fn set_maximized(mut self) -> Self
     {
-        self.wbuilder = self.wbuilder.with_maximized(true);
+        self.w_attributes = self.w_attributes.with_maximized(true);
         self
     }
 
     pub fn set_resizable(mut self, value: bool) -> Self
     {
-        self.wbuilder = self.wbuilder.with_resizable(value);
+        self.w_attributes = self.w_attributes.with_resizable(value);
         self
     }
 
@@ -269,7 +265,7 @@ impl<T> AppBuilder<T>
     /// # example
     /// 
     /// ```
-    ///    baguette_framework::new()
+    ///    baguette::new()
     ///    .with_title("example")    
     ///    .with_window_icon(include_bytes!("sprite.png"))
     /// 
@@ -287,7 +283,7 @@ impl<T> AppBuilder<T>
             Err(err) => panic!("{err}"),
         };
 
-        self.wbuilder = self.wbuilder.with_window_icon(Some
+        self.w_attributes = self.w_attributes.with_window_icon(Some
         (
             match window::Icon::from_rgba(bytes, width, height)
             {
@@ -301,7 +297,7 @@ impl<T> AppBuilder<T>
 
     pub fn set_theme(mut self, theme: window::Theme) -> Self
     {
-        self.wbuilder = self.wbuilder.with_theme(Some(theme));
+        self.w_attributes = self.w_attributes.with_theme(Some(theme));
         self
     }
 }

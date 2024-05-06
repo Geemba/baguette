@@ -19,7 +19,6 @@ pub use input::winit;
 
 use winit::{
     dpi::{PhysicalPosition, PhysicalSize},
-    event_loop::EventLoopWindowTarget,
     window::{CursorGrabMode, Window, WindowButtons, WindowLevel},
 };
 
@@ -394,13 +393,14 @@ impl State {
             // Things we completely ignore:
             WindowEvent::ActivationTokenDone { .. }
             | WindowEvent::AxisMotion { .. }
-            | WindowEvent::SmartMagnify { .. }
-            | WindowEvent::TouchpadRotate { .. } => EventResponse {
+            | WindowEvent::DoubleTapGesture { .. }
+            | WindowEvent::PanGesture { .. }
+            | WindowEvent::RotationGesture { .. } => EventResponse {
                 repaint: false,
                 consumed: false,
             },
 
-            WindowEvent::TouchpadMagnify { delta, .. } => {
+            WindowEvent::PinchGesture { delta, .. } => {
                 // Positive delta values indicate magnification (zooming in).
                 // Negative delta values indicate shrinking (zooming out).
                 let zoom_factor = (*delta as f32).exp();
@@ -739,7 +739,7 @@ impl State {
 
             if let Some(winit_cursor_icon) = translate_cursor(cursor_icon) {
                 window.set_cursor_visible(true);
-                window.set_cursor_icon(winit_cursor_icon);
+                window.set_cursor(winit_cursor_icon);
             } else {
                 window.set_cursor_visible(false);
             }
@@ -844,7 +844,7 @@ impl State {
         &mut self,
         commands: impl IntoIterator<Item = &'a ViewportCommand>,
         window: &Window,
-        target: &EventLoopWindowTarget<()>
+        target: &winit::event_loop::ActiveEventLoop
     )
     {
         for command in commands
@@ -863,7 +863,7 @@ impl State {
         &mut self,
         window: &Window,
         command: &ViewportCommand,
-        target: &EventLoopWindowTarget<()>
+        target: &winit::event_loop::ActiveEventLoop
     )
     {
         use winit::window::ResizeDirection;
@@ -1355,15 +1355,16 @@ pub fn short_window_event_description(event: &winit::event::WindowEvent) -> &'st
         WindowEvent::CursorLeft { .. } => "WindowEvent::CursorLeft",
         WindowEvent::MouseWheel { .. } => "WindowEvent::MouseWheel",
         WindowEvent::MouseInput { .. } => "WindowEvent::MouseInput",
-        WindowEvent::TouchpadMagnify { .. } => "WindowEvent::TouchpadMagnify",
         WindowEvent::RedrawRequested { .. } => "WindowEvent::RedrawRequested",
-        WindowEvent::SmartMagnify { .. } => "WindowEvent::SmartMagnify",
-        WindowEvent::TouchpadRotate { .. } => "WindowEvent::TouchpadRotate",
         WindowEvent::TouchpadPressure { .. } => "WindowEvent::TouchpadPressure",
         WindowEvent::AxisMotion { .. } => "WindowEvent::AxisMotion",
         WindowEvent::Touch { .. } => "WindowEvent::Touch",
         WindowEvent::ScaleFactorChanged { .. } => "WindowEvent::ScaleFactorChanged",
         WindowEvent::ThemeChanged { .. } => "WindowEvent::ThemeChanged",
         WindowEvent::Occluded { .. } => "WindowEvent::Occluded",
+        WindowEvent::PinchGesture { .. } =>"WindowEvent::PinchGesture",
+        WindowEvent::PanGesture { .. } => "WindowEvent::PanGesture",
+        WindowEvent::DoubleTapGesture { .. } => "WindowEvent::DoubleTapGesture",
+        WindowEvent::RotationGesture { .. } => "WindowEvent::RotationGesture",
     }
 }

@@ -1,7 +1,7 @@
 use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard};
 
 use crate::*;
-use input::winit::window::Window;
+use input::winit::{event_loop::ActiveEventLoop, window::{Window, WindowAttributes}};
 
 pub struct Renderer<'a>
 {
@@ -45,7 +45,7 @@ impl Renderer<'_>
 
     pub fn screen_size<T: input::winit::dpi::Pixel>(&self) -> input::winit::dpi::PhysicalSize<T>
     {
-        self.data.window.inner_size().cast()
+        self.data.window.as_ref().unwrap().inner_size().cast()
     }
 }
 
@@ -54,7 +54,11 @@ pub struct RendererData
 {
     camera: Camera,
 
-    pub window: Window,
+    /// the window that this renderer draws on
+    pub window: Option<Window>,
+    /// attributes used when creating a window.
+    w_attributes: WindowAttributes,
+    
     pub ui: ui::UiData,
     ctx: ContextHandle,
     
@@ -138,7 +142,7 @@ impl RendererData
     pub fn render
     (
         &mut self,
-        window_target: &input::winit::event_loop::EventLoopWindowTarget<()>,
+        window_target: &input::winit::event_loop::ActiveEventLoop,
     ) -> Result<(), wgpu::SurfaceError>
     {
         let ctx_read = self.ctx
@@ -191,7 +195,14 @@ impl RendererData
                     render_pass.draw(&mut pass, camera)?
                 }
             }
-            self.ui.render(&mut pass, &self.window, window_target, &ctx_read);
+
+            self.ui.render
+            (
+                &mut pass,
+                self.window.as_ref().unwrap(),
+                window_target,
+                &ctx_read
+            )
         }
 
         self.output.copy_to(&mut encoder, frame_output);
@@ -284,7 +295,7 @@ impl RendererData
 
     pub fn begin_egui_frame(&mut self)
     {
-        self.ui.begin_egui_frame(&self.window)
+        self.ui.begin_egui_frame(self.window.as_ref().unwrap())
     }
 }
 
@@ -297,7 +308,7 @@ impl RendererData
     ///
     /// panics if an appropriate adapter or device is not avaiable.
     #[must_use]
-    pub fn new(window: Window) -> Self
+    pub fn new(w_attributes: WindowAttributes) -> Self
     {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
  
@@ -323,10 +334,10 @@ impl RendererData
         ).expect("bruh failed to retrieve a device");
 
             // width and height of the rendered area in pixels
-            let (width,height) = window.inner_size().into();
+            let (width,height) = (1,1);
 
             // scalefactor of the screen we are rendering inside
-            let scale = window.scale_factor() as f32;
+            let scale = 1.;
 
         let output = FrameOutput::new(&device,width,height);
         
@@ -352,7 +363,10 @@ impl RendererData
         {
             adapter,
             passes: None,
-            window,
+
+            window: None,
+            w_attributes,
+
             ui,
             camera,
             output,
@@ -365,11 +379,16 @@ impl RendererData
     /// # Panics
     ///
     /// panics if the surface is not capable of being created.
-    pub fn resume(&mut self)
+    pub fn resume(&mut self, event_loop: &ActiveEventLoop)
     {    
-        let surface = unsafe { self.ctx.read().unwrap().instance.create_surface(&self.window) }
+        let window = event_loop.create_window(self.w_attributes.clone())
             .expect("failed to create window");
+
+        let surface = unsafe { self.ctx.read().unwrap().instance.create_surface(&window) }
+            .expect("failed to create surface on window");
         
+        self.window = Some(window);
+
         let surface_caps = surface.get_capabilities(&self.adapter);
 
         //preferably srgb format
