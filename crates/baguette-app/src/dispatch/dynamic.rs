@@ -181,7 +181,7 @@ impl FsmData<ActiveState>
             StateEvent::Exit(id) =>
             {
                 let new = self.states.remove(id)
-                .expect("attempted to transition to a state which wasn't found, probably because it wasn't added to the fsm 👮")
+                .expect("attempted to transition to a state that wasn't found, probably because it wasn't added to the fsm 👮")
                 .into_active(app);
 
                 let old = std::mem::replace(&mut self.current, new).into_unactive();

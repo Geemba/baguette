@@ -1,7 +1,5 @@
-//! # Baguette engine
-//! 
-//! baguette aims to be a simple but performant engine for indie games,
-//! providing all the necessary tools to develop a game
+//! the baguette engine aims to be a basic but performant engine for indie games,
+//! providing all the necessary tools to develop a simple 2d game
 
 pub use app;
 pub use input;
