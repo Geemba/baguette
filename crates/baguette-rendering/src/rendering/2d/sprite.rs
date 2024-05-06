@@ -535,6 +535,9 @@ pub(super) struct SpriteGpuBinding
 
     pub bindgroup: wgpu::BindGroup,
 
+    pub z_order: Option<f32>,
+
+    /// unique id to keep track of this binding
     pub id: Option<u32>
 }
 
@@ -614,7 +617,8 @@ impl SpriteGpuBinding
                     }
                 ]
             }),
-            id: Some(baguette_math::rand::u32(..))
+            id: Some(baguette_math::rand::u32(..)),
+            z_order: {println!("todo set z_order"); None},
         }
     }
 }
@@ -766,7 +770,8 @@ impl Drop for SpriteIterMut<'_>
     }
 }
 
-/// costant value describing the indices required to render a 2d sprite
+/// costant indices describing the order to draw
+/// a rectangle to render a 2d sprite
 pub(crate) const SPRITE_INDICES: [u16; 6] =
 [
     0, 1, 2, 2, 3, 0
