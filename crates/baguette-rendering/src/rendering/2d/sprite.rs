@@ -770,7 +770,7 @@ impl Drop for SpriteIterMut<'_>
     }
 }
 
-/// costant indices describing the order to draw
+/// constant indices describing the order to draw
 /// a rectangle to render a 2d sprite
 pub(crate) const SPRITE_INDICES: [u16; 6] =
 [
