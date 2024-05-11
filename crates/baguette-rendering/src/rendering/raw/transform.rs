@@ -13,7 +13,7 @@ pub struct Transform
 
 impl Transform
 {
-    pub const fn from_pos_rot_scale(translation: math::Vec3, orientation: math::Quat, scale: math::Vec3) -> Self 
+    pub const fn new(translation: math::Vec3, orientation: math::Quat, scale: math::Vec3) -> Self 
     {
         Self { translation, orientation, scale }
     }
