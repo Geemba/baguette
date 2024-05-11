@@ -12,8 +12,10 @@ type StateReturnCallback = fn(&mut App) -> DispatchedState;
 /// a function pointer that returns a vec containing all the possible transitions
 type TransitionsCallback = fn() -> Vec<Transition>;
 
+/// a state of this application
 pub trait State
 {
+    /// describe how to initialize the implementor 
     fn new(app: &mut App) -> Self where Self: Sized;
 
     fn update(&mut self, app: &mut App, event: &StateEvent);
