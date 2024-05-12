@@ -156,7 +156,7 @@ impl RendererData
             .expect("how are we rendering without a surface")
             .get_current_texture()?;
 
-        let frame_output = &output.texture.create_view(&Default::default());
+        let frame_output_view = &output.texture.create_view(&Default::default());
 
         let mut encoder = ctx_read.create_command_encoder("render encoder");
         {
@@ -202,7 +202,7 @@ impl RendererData
             )
         }
 
-        self.output.copy_to(&mut encoder, frame_output);
+        self.output.copy_to(&mut encoder, frame_output_view);
         
         ctx_read.queue.submit([encoder.finish()]);
         output.present();
