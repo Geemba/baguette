@@ -34,13 +34,11 @@ impl Renderer<'_>
 
     /// loads a sprite to be rendered,
     /// uses a builder type to describe how the sprite will be loaded
-    pub fn load_sprite<T>(&mut self, sprite: SpriteLoader<T>) -> Sprite
-        where
-            T: Into<std::ffi::OsString> + AsRef<std::path::Path>
+    pub fn load_sprite(&mut self, loader: SpriteLoader) -> Sprite
     {
         let ctx = self.data.ctx.clone();
         let pass = self.data.get_or_insert_pass::<SpritePass>();
-        pass.add(ctx, sprite)
+        pass.add_sprite(ctx, loader)
     }
 
     pub fn screen_size<T: input::winit::dpi::Pixel>(&self) -> input::winit::dpi::PhysicalSize<T>
@@ -52,20 +50,19 @@ impl Renderer<'_>
 /// this is handled by the engine
 pub struct RendererData
 {
-    camera: Camera,
+    ctx: ContextHandle,
 
     /// the window that this renderer draws on
     pub window: Option<Window>,
+    pub ui: ui::UiData,
+
     /// attributes used when creating a window.
     w_attributes: WindowAttributes,
-    
-    pub ui: ui::UiData,
-    ctx: ContextHandle,
-    
+    camera: Camera,   
+    adapter: wgpu::Adapter,
+    passes: Option<RenderPasses>,
     output: FrameOutput,
 
-    adapter: wgpu::Adapter,
-    passes: Option<RenderPasses>
 }
 
 // integration specific
