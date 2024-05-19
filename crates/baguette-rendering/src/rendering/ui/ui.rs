@@ -8,7 +8,6 @@ mod egui_wgpu;
 mod egui_winit;
 
 pub use egui;
-pub use egui::*;
 
 pub struct Ui<'a>
 {
