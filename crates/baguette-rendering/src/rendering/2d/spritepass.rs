@@ -58,8 +58,6 @@ impl SpritePass
             let samplers = self.sprites.iter().map(|sprite| &sprite.as_ref().texture.sampler).collect::<Vec<_>>();
             let sprite_slices = &self.sprites.iter().map(|sprite| sprite.as_ref().slice).collect::<Vec<_>>();
 
-            println!("textures count:{}", textures.len());
-
             match self.bindings
             {
                 Some(ref mut binding) =>
@@ -109,7 +107,7 @@ impl RenderPass for SpritePass
 
                 for instance in &sprite.instances
                 {
-                    self.instances.push(instance.as_raw(sprite.pivot, i as u32))
+                    self.instances.push(instance.as_raw(&sprite.slice, sprite.pivot, i as u32))
                 }
             }
             
@@ -210,8 +208,7 @@ pub struct SpriteLoader
 
 impl SpriteLoader
 {
-    pub fn new<T>(path: T) -> Self
-    where T: Into<std::ffi::OsString>
+    pub fn new(path: impl Into<std::ffi::OsString>) -> Self
     {
         Self
         {
@@ -246,7 +243,23 @@ impl SpriteLoader
 
     pub fn instances(mut self, instances: impl IntoIterator<Item = SpriteInstance>) -> Self
     {
-        self.instances = instances.into_iter().collect();
+        let instances = instances
+            .into_iter()
+            .collect::<Vec<_>>();
+
+        if !instances.is_empty()
+        {
+            self.instances = instances;
+        }
+        
+        self
+    }
+
+    /// if this is an atlas, pass many rows and columns it has
+    pub fn slice_atlas(mut self, rows: u32, columns: u32) -> Self
+    {
+        self.rows = u32::max(1, rows);
+        self.columns = u32::max(1, columns);
         self
     }
 }
