@@ -1,7 +1,7 @@
 
 use image::GenericImageView;
 
-pub struct Texture
+pub struct TextureData
 {
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
@@ -9,7 +9,7 @@ pub struct Texture
     pub pxunit: f32,
 }
 
-impl Texture 
+impl TextureData 
 {
     pub fn from_bytes
     (
