@@ -3,6 +3,7 @@ use std::{ffi::OsString, ptr::NonNull, sync::RwLockReadGuard};
 use crate::*;
 use sprite::*;
 
+/// a starting value for how many sprite the instance buffer could hold
 const SPRITE_INSTANCES_INITIAL_CAPACITY: usize = 50;
 
 pub struct SpritePass
@@ -98,12 +99,6 @@ impl RenderPass for SpritePass
     )
     -> Result<(), wgpu::SurfaceError>
     {
-        //if self.bindings.is_none()
-        //{
-        //    println!("binding was not present");
-        //    return Ok(());
-        //}
-
         // instance sorting
         {
             self.instances.clear();
@@ -114,19 +109,41 @@ impl RenderPass for SpritePass
 
                 for instance in &sprite.instances
                 {
-                    self.instances.push(instance.as_raw(i as u32))
+                    self.instances.push(instance.as_raw(sprite.pivot, i as u32))
                 }
             }
             
             self.instances.sort_unstable_by
             (
-                |instance, other| f32::total_cmp
-                (
-                    // [3] is the translation 
-                    // [1] is the y position
-                    &instance.transform[3][1],
-                    &other.transform[3][1]
-                ).reverse()
+                |instance, other| unsafe
+                {
+                    // instance
+
+                    let instance_pivot = self.sprites[instance.bind_idx as usize].as_ref().pivot.unwrap_or_default().y;
+                        
+                    let instance_y_pos = instance.transform[3][1]; // [3] is the translation, [1] is the y position
+
+                    // other
+
+                    let other_pivot = self.sprites[other.bind_idx as usize].as_ref().pivot.unwrap_or_default().y;
+
+                    let other_y_pos = other.transform[3][1]; // [3] is the translation, [1] is the y position
+
+                    //
+
+                    //println!
+                    //(
+                    //    "instance sorting point {}, other sorting point: {}",
+                    //    instance_y_pos + instance_pivot,
+                    //    other_y_pos + other_pivot
+                    //);
+
+                    f32::total_cmp
+                    (
+                        &(instance_y_pos + instance_pivot), 
+                        &(other_y_pos + other_pivot) 
+                    ).reverse()
+                }
             );
         }
         
@@ -201,23 +218,24 @@ impl SpriteLoader
             path: path.into(),
             filtermode: FilterMode::Linear,
             pivot: None,
-            instances: vec![],
+            instances: vec![Default::default()],
             pxunit: 100.,
             rows: 1,
             columns: 1,
         }
     }
 
-    pub fn new_pixelated<T>(path: T) -> Self
-    where T: Into<std::ffi::OsString>
+    pub fn new_pixelated(path: impl Into<std::ffi::OsString>) -> Self
     {
         let mut loader = Self::new(path);
         loader.filtermode = FilterMode::Nearest;
         loader
     }
 
-    pub fn pivot(mut self, pivot: Vec2) -> Self
+    pub fn pivot(mut self, pivot: impl Into<Vec2>) -> Self
     {
+        let pivot = pivot.into();
+
         if pivot != Vec2::ZERO
         {
             self.pivot = Some(pivot);

@@ -186,11 +186,6 @@ impl SpriteImpl
 
         let texture = crate::TextureData { texture, view, sampler, pxunit };
 
-        if instances.is_empty()
-        {
-            instances.push(SpriteInstance::default());
-        }
-
         let slice = SpriteSlice::new(vertices, rows, columns);
 
         Self
@@ -267,11 +262,29 @@ impl Default for SpriteInstance
 impl SpriteInstance
 {
     #[inline]
-    pub(crate) fn as_raw(&self, bind_idx: u32) -> SpriteInstanceRaw
+    pub(crate) fn as_raw(&self, pivot: Option<Vec2>, bind_idx: u32) -> SpriteInstanceRaw
     {
         SpriteInstanceRaw
         {
-            transform: self.compute().to_cols_array_2d(),
+            transform:
+            {
+                match pivot
+                {
+                    Some(pivot) =>
+                    {
+                        Mat4::from_translation(vec3(pivot.x, pivot.y, 0.)) *
+                        Mat4::from_scale(self.scale) * 
+                        Mat4::from_quat(self.orientation) * 
+                        Mat4::from_translation(-vec3(pivot.x, pivot.y, 0.)) *
+                        Mat4::from_translation(self.translation)
+                    }
+                    None => Mat4::from_scale_rotation_translation
+                    (
+                        self.scale, self.orientation, self.translation
+                    )
+                }
+
+            }.to_cols_array_2d(),
             uv_idx: 0,
             bind_idx,
         }
@@ -290,29 +303,6 @@ impl SpriteInstance
     pub fn billboard_xy(&mut self, cam: &mut crate::Camera)
     {
         self.orientation = cam.data.borrow().orientation().inverse()
-    }
-}
-
-impl crate::TransformCompute for SpriteInstance
-{
-    fn compute(&self) -> Mat4
-    {
-        //if let Some(pivot) = self.pivot 
-        //{
-        //    Mat4::from_translation(vec3(pivot.x, pivot.x, 0.)) *
-        //    Mat4::from_scale(self.scale) * 
-        //    Mat4::from_quat(self.orientation) * 
-        //    Mat4::from_translation(-vec3(pivot.x, pivot.x, 0.)) *
-        //    Mat4::from_translation(self.translation)
-        //}
-        //else
-        //{
-            Mat4::from_scale_rotation_translation
-            (
-                self.scale, self.orientation, self.translation
-            )
-        //}
-
     }
 }
 
@@ -362,13 +352,6 @@ impl<'a> Iterator for SpriteIterMut<'a>
         next
     }
 }
-
-/// constant indices describing the order to draw
-/// a rectangle to render a 2d sprite
-pub(crate) const SPRITE_INDICES_U16: [u16; 6] =
-[
-    0, 1, 2, 2, 3, 0
-];
 
 pub(crate) const SPRITE_INDICES_U32: [u32; 6] =
 [
