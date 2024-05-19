@@ -2,13 +2,15 @@ use std::{ptr::NonNull, sync::RwLockReadGuard};
 
 use crate::*;
 
+type Owner = NonNull<Vec<NonNull<SpriteImpl>>>;
+
 #[must_use]
 /// runtime instance of a sprite, contains both the texture and all the instances
 pub struct Sprite
 {
     pub(crate) sprite: Box<SpriteImpl>,
     ///// this is used only on drop to remove the reference to this [Sprite]
-    pub(crate) sprites: NonNull<Vec<NonNull<SpriteImpl>>>
+    pub(crate) sprites: Owner
 }
 
 impl Sprite
@@ -97,7 +99,7 @@ impl SpriteImpl
     /// panics if the path is not found
     pub fn from_loader(ctx: &RwLockReadGuard<ContextHandleData>, loader: SpriteLoader) -> Self
     {
-        let SpriteLoader { ref path, filtermode, pivot, mut instances, pxunit, rows, columns } = loader;
+        let SpriteLoader { ref path, filtermode, pivot, instances, pxunit, rows, columns } = loader;
 
         let image = image::io::Reader::open(path)
             .unwrap()
@@ -172,8 +174,8 @@ impl SpriteImpl
         // pixel per unit factor
         let scale = Vec2::new
         (
-            dimensions.x as f32 / pxunit,
-            dimensions.y as f32 / pxunit
+            (dimensions.x / columns) as f32 / pxunit,
+            (dimensions.y / rows) as f32 / pxunit
         );
 
         let vertices =
@@ -201,14 +203,9 @@ impl SpriteImpl
 impl SpriteImpl
 {
     /// iters the instances mutably
-    pub fn iter_mut(&mut self) -> SpriteIterMut
+    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, SpriteInstance>
     {
-        SpriteIterMut
-        {
-            instances: (&mut self.instances).into(),
-            iter_index: 0,
-            phantom: std::marker::PhantomData,
-        }
+        self.instances.iter_mut()
     }
 
     /// iters the instances immutably
@@ -244,6 +241,9 @@ pub struct SpriteInstance
     pub translation: Vec3,
     pub orientation: Quat,
     pub scale: Vec3,
+    /// indicates the index to which tile is being rendered if the sprite is sliced,
+    /// if not, it won't do anything
+    pub uv_idx: u32,
 }
 
 impl Default for SpriteInstance
@@ -254,7 +254,8 @@ impl Default for SpriteInstance
         {
             translation: Vec3::default(),
             orientation: Quat::default(),
-            scale: Vec3::ONE
+            scale: Vec3::ONE,
+            uv_idx: u32::default(),
         }
     }
 }
@@ -262,7 +263,7 @@ impl Default for SpriteInstance
 impl SpriteInstance
 {
     #[inline]
-    pub(crate) fn as_raw(&self, pivot: Option<Vec2>, bind_idx: u32) -> SpriteInstanceRaw
+    pub(crate) fn as_raw(&self, slice: &SpriteSlice, pivot: Option<Vec2>, bind_idx: u32) -> SpriteInstanceRaw
     {
         SpriteInstanceRaw
         {
@@ -272,11 +273,11 @@ impl SpriteInstance
                 {
                     Some(pivot) =>
                     {
-                        Mat4::from_translation(vec3(pivot.x, pivot.y, 0.)) *
-                        Mat4::from_scale(self.scale) * 
-                        Mat4::from_quat(self.orientation) * 
-                        Mat4::from_translation(-vec3(pivot.x, pivot.y, 0.)) *
-                        Mat4::from_translation(self.translation)
+                        Mat4::from_scale_rotation_translation
+                        (
+                            self.scale, self.orientation, vec3(pivot.x, pivot.y, 0.)
+                        ) *
+                        Mat4::from_translation(self.translation + -vec3(pivot.x, pivot.y, 0.))
                     }
                     None => Mat4::from_scale_rotation_translation
                     (
@@ -285,7 +286,7 @@ impl SpriteInstance
                 }
 
             }.to_cols_array_2d(),
-            uv_idx: 0,
+            uv_idx: u32::min(self.uv_idx, slice.rows * slice.columns - 1),
             bind_idx,
         }
     }
@@ -321,35 +322,6 @@ impl Default for SpriteLayout
     fn default() -> Self 
     {
         Self { rows: 1, columns: 1 }
-    }
-}
-
-pub struct SpriteIterMut<'a>
-{
-    instances: NonNull<Vec<SpriteInstance>>,
-
-    iter_index: usize,
-    phantom: std::marker::PhantomData<&'a ()>
-}
-
-impl<'a> Iterator for SpriteIterMut<'a>
-{
-    type Item = &'a mut SpriteInstance;
-
-    fn next(&mut self) -> Option<Self::Item>
-    {
-        // SAFETY: we know the lifetime will live longer than this function
-        // since the vec is stored in the renderer
-        let next = unsafe 
-        {
-            self.instances
-                .as_mut()
-                .get_mut(self.iter_index)
-        };
-        
-        self.iter_index += 1;
-
-        next
     }
 }
 
