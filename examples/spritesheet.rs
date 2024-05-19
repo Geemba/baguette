@@ -1,4 +1,4 @@
-use app::*;
+use app::{spritesheet::SheetSlices, *};
 
 fn main()
 {
@@ -10,38 +10,43 @@ fn main()
 struct TestA
 {
     time: u8,
-    sprite: Sprite,
+    sprite: SpriteSheet,
 }
 
 impl State for TestA
 {
-    fn new(app: &mut App) -> Self where Self: Sized
+    fn new(app: &mut App) -> Self
     {
         Self
         {
             time: 0,
-            sprite: app.renderer.load_sprite
+            sprite: SpriteSheet::new
             (
-                SpriteLoader::new(r"assets\green dude sheet.png",)
-            )
+                &mut app.renderer,
+                SpriteSheetLoader::new_pixelated
+                (
+                    "assets/green dude sheet.png",
+                    [(Default::default(), SheetSlices::Range(19..22))],
+                    6, 5
+                )
+            ),
         }
     }
 
-    fn update(&mut self, _app: &mut App, _: &StateEvent)
+    fn update(&mut self, _: &mut App, _: &StateEvent)
     {
-        todo!()
-        //match self.time > 8
-        //{
-        //    true =>
-        //    {
-        //        for instance in self.sprite.iter_mut()
-        //        {
-        //            instance.section.next_or_first();
-        //        }
+        match self.time > 8
+        {
+            true =>
+            {
+                for (.., section) in self.sprite.iter_mut()
+                {
+                    section.next_or_first();
+                }
 
-        //        self.time = 0
-        //    }
-        //    false => self.time += 1
-        //}
+                self.time = 0
+            }
+            false => self.time += 1
+        }
     }
 }
