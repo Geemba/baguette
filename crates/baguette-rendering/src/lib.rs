@@ -12,6 +12,9 @@ pub mod sprite;
 pub use sprite::Sprite;
 pub use sprite::SpriteLayout;
 
+#[path ="rendering/2d/spritesheet.rs"]
+pub mod spritesheet;
+
 #[path ="rendering/renderer.rs"]
 pub mod renderer;
 pub use renderer::*;
@@ -38,8 +41,6 @@ pub mod transform;
 pub mod vertex;
 #[path ="rendering/raw/texture.rs"]
 pub mod texture;
-#[path ="rendering/raw/mesh.rs"]
-pub mod mesh;
 
 #[path ="rendering/renderer/util.rs"]
 pub mod util;
@@ -47,8 +48,6 @@ pub mod util;
 pub use transform::*;
 pub use vertex::*;
 pub use texture::*;
-pub use mesh::*;
-pub use util::*;
 
 
 pub use wgpu::SurfaceError;

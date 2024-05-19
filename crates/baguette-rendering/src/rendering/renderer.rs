@@ -142,23 +142,23 @@ impl RendererData
         window_target: &input::winit::event_loop::ActiveEventLoop,
     ) -> Result<(), wgpu::SurfaceError>
     {
-        let ctx_read = self.ctx
+        let ctx = self.ctx
             .read()
             .expect("ctx failed to retrieve while rendering");
 
         //CameraData::update_all();
-        self.camera.data.borrow_mut().update(&ctx_read);
+        self.camera.data.borrow_mut().update(&ctx);
 
         let camera = &self.camera.data.borrow();
 
-        let output = ctx_read.screen.surface
+        let output = ctx.screen.surface
             .as_ref()
             .expect("how are we rendering without a surface")
             .get_current_texture()?;
 
         let frame_output_view = &output.texture.create_view(&Default::default());
 
-        let mut encoder = ctx_read.create_command_encoder("render encoder");
+        let mut encoder = ctx.create_command_encoder("render encoder");
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor
             {
@@ -185,11 +185,11 @@ impl RendererData
             });
 
 
-            if let Some(passes) = &self.passes 
+            if let Some(passes) = &mut self.passes 
             {
-                for render_pass in passes.iter()
+                for render_pass in passes.iter_mut()
                 {
-                    render_pass.draw(&mut pass, camera)?
+                    render_pass.draw(&ctx, &mut pass, camera)?
                 }
             }
 
@@ -198,13 +198,13 @@ impl RendererData
                 &mut pass,
                 self.window.as_ref().unwrap(),
                 window_target,
-                &ctx_read
+                &ctx
             )
         }
 
         self.output.copy_to(&mut encoder, frame_output_view);
         
-        ctx_read.queue.submit([encoder.finish()]);
+        ctx.queue.submit([encoder.finish()]);
         output.present();
         
         Ok(())
@@ -307,11 +307,13 @@ impl RendererData
     #[must_use]
     pub fn new(w_attributes: WindowAttributes) -> Self
     {
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::default());
+        use wgpu::*;
+
+        let instance = Instance::new(InstanceDescriptor::default());
  
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions
+        let adapter = pollster::block_on(instance.request_adapter(&RequestAdapterOptions
         {
-            power_preference: wgpu::PowerPreference::HighPerformance,
+            power_preference:PowerPreference::default(),
             force_fallback_adapter: false,
             compatible_surface: None
         })).expect("bruh failed to find an appropriate adapter");
@@ -320,7 +322,7 @@ impl RendererData
         (
             adapter.request_device
             (
-                &wgpu::DeviceDescriptor
+                &DeviceDescriptor
                 {
                     label: Some("renderer device"),
                     features: adapter.features(),
@@ -340,7 +342,6 @@ impl RendererData
         
         let ctx_data = ContextHandleData::new(instance, device, queue);
 
-        // until we dont remove the static data the order we itialize matters
         let ui = ui::UiData::new(&ctx_data, width,height,scale);
 
         let camera = Camera

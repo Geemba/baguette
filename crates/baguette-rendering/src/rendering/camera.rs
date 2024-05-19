@@ -32,10 +32,10 @@ impl Camera
 pub(crate) struct CameraData
 {
     pub projection: CameraProjection,
-    pub binding: GpuBinding
+    pub bindings: CameraBinding
 }
 
-pub struct GpuBinding
+pub struct CameraBinding
 {
     pub buffer: wgpu::Buffer,
     pub bindgroup: wgpu::BindGroup,
@@ -62,7 +62,7 @@ pub(crate) fn camera_bindgroup_layout(ctx: &ContextHandleData) -> wgpu::BindGrou
     })
 }
 
-#[must_use] fn get_binding_data(ctx: &ContextHandleData) -> GpuBinding
+#[must_use] fn get_binding_data(ctx: &ContextHandleData) -> CameraBinding
 {
     let buffer = ctx.create_buffer(wgpu::BufferDescriptor
     {
@@ -86,7 +86,7 @@ pub(crate) fn camera_bindgroup_layout(ctx: &ContextHandleData) -> wgpu::BindGrou
         label: Some("camera_bindgroup"),
     });
 
-    GpuBinding { buffer, bindgroup: bind_group }
+    CameraBinding { buffer, bindgroup: bind_group }
 }
 
 impl CameraData
@@ -96,7 +96,7 @@ impl CameraData
         Self
         {
             projection: CameraProjection::new(&ctx.screen.config),       
-            binding: get_binding_data(ctx)
+            bindings: get_binding_data(ctx)
         }
     }
 
@@ -112,7 +112,7 @@ impl CameraData
         let uniform = self.projection.screen_space_matrix().to_cols_array_2d();
     
         // and we queue a buffer write to update the actual matrix on the gpu
-        ctx.write_buffer(&self.binding.buffer, &uniform);
+        ctx.write_buffer(&self.bindings.buffer, &uniform);
     }
 
     #[inline]
