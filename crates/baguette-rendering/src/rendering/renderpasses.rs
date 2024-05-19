@@ -10,14 +10,17 @@ impl Passes
 {
     pub(crate) fn draw<'a>
     (
-        &'a self, pass: &mut wgpu::RenderPass<'a>, camera: &'a camera::CameraData
+        &'a mut self,
+        ctx: &std::sync::RwLockReadGuard<ContextHandleData>,
+        pass: &mut wgpu::RenderPass<'a>,
+        camera: &'a camera::CameraData
     )
     -> Result<(), wgpu::SurfaceError>
     {
         match self
         {
-            Self::SpriteSheet(pass) => pass as &dyn RenderPass,
-        }.draw(pass, camera)
+            Self::SpriteSheet(pass) => pass as &mut dyn RenderPass,
+        }.draw(ctx, pass, camera)
     }
 }
 
@@ -31,16 +34,16 @@ impl RenderPasses
     pub const fn new() -> Self { Self { renderpasses: vec![]} }
     
     /// immutable iteration
-    pub fn iter(&self) -> std::slice::Iter<'_, Passes>
+    pub fn iter(&self) -> std::slice::Iter<Passes>
     {
         self.renderpasses.iter()
     }
 
     ///// mutable iteration
-    //pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, Passes>
-    //{
-    //    self.renderpasses.iter_mut()
-    //}    
+    pub fn iter_mut(&mut self) -> std::slice::IterMut<Passes>
+    {
+        self.renderpasses.iter_mut()
+    }    
 }
 
 pub(crate) trait RenderPass
@@ -51,7 +54,8 @@ pub(crate) trait RenderPass
     #[allow(clippy::cast_possible_truncation)]
     fn draw<'a>
     (
-        &'a self,
+        &'a mut self,
+        ctx: &std::sync::RwLockReadGuard<ContextHandleData>,
         pass: &mut wgpu::RenderPass<'a>,
         camera: &'a camera::CameraData
     ) -> Result<(), wgpu::SurfaceError>;
