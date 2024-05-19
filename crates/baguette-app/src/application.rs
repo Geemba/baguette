@@ -171,7 +171,7 @@ impl<'a> App<'a>
         // we just send a close command from egui,
         // this has no sense other than being faster to implement 
         // rather than creating more functions just to do the same thing
-        self.ui().context().send_viewport_cmd(rendering::ui::ViewportCommand::Close)
+        self.ui().context().send_viewport_cmd(rendering::ui::egui::ViewportCommand::Close)
     }
 
     pub fn screen_size<T>(&self) -> input::winit::dpi::PhysicalSize<T>
