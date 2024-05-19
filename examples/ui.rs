@@ -1,4 +1,5 @@
 use app::*;
+use ui::egui;
 
 /// a very simple ui test that shows how to display variables on a window,
 /// read the egui docs to better understand how to use it
@@ -19,28 +20,20 @@ impl State for TestA
 {
     fn new(app: &mut App) -> Self where Self: Sized
     {
-        todo!()
-        //Self
-        //{
-        //    cam: Camera::get(&mut app.renderer),
-        //    sprite: app.renderer.load_sprite
-        //    (
-        //        SpriteLoader::SingleSprite
-        //        {
-        //            path: r"assets\green dude.png",
-        //            filtermode: FilterMode::Nearest,
-        //            instances: vec![Transform::default()],
-        //            pxunit: 100.,
-        //        }
-        //    ),
-        //}
+        Self
+        {
+            cam: Camera::get(&mut app.renderer),
+            sprite: app.renderer.load_sprite
+            (
+                SpriteLoader::new_pixelated(r"assets\green dude.png")
+            ),
+        }
     }
 
     fn update(&mut self, app: &mut App, _: &StateEvent)
     {
         self.move_cam(&app.input);
-
-        ui::Window::new("window example")
+        egui::Window::new("window example")
             .show(app.ui().context(), |ui|
             {
                 ui.group
@@ -49,7 +42,7 @@ impl State for TestA
                     {
                         ui.label
                         (
-                            ui::RichText::new
+                            egui::RichText::new
                             (
                                 "Camera position: \n".to_owned() +
                                 &format!
@@ -65,7 +58,7 @@ impl State for TestA
                                 .size(20.)
                         );
 
-                        if ui.button(ui::RichText::new("reset").size(20.)).clicked()
+                        if ui.button(egui::RichText::new("reset").size(20.)).clicked()
                         {
                             self.cam.set_position(math::Vec3::Z * 2.)
                         }
@@ -74,13 +67,13 @@ impl State for TestA
 
                 let button = ui.button
                 (
-                    ui::RichText::new("Close App")
+                    egui::RichText::new("Close App")
                         .size(30.)
                 );
 
                 if button.clicked()
                 {
-                    ui.ctx().send_viewport_cmd(ui::ViewportCommand::Close);
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                 }                              
             });
     }
