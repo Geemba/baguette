@@ -19,20 +19,21 @@ impl State for TestA
 {
     fn new(app: &mut App) -> Self where Self: Sized
     {
-        Self
-        {
-            cam: Camera::get(&mut app.renderer),
-            sprite: app.renderer.load_sprite
-            (
-                SpriteLoader::SingleSprite
-                {
-                    path: r"assets\green dude.png",
-                    filtermode: FilterMode::Nearest,
-                    instances: vec![Transform::default()],
-                    pxunit: 100.,
-                }
-            ),
-        }
+        todo!()
+        //Self
+        //{
+        //    cam: Camera::get(&mut app.renderer),
+        //    sprite: app.renderer.load_sprite
+        //    (
+        //        SpriteLoader::SingleSprite
+        //        {
+        //            path: r"assets\green dude.png",
+        //            filtermode: FilterMode::Nearest,
+        //            instances: vec![Transform::default()],
+        //            pxunit: 100.,
+        //        }
+        //    ),
+        //}
     }
 
     fn update(&mut self, app: &mut App, _: &StateEvent)
