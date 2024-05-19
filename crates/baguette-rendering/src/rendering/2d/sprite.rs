@@ -1,343 +1,105 @@
-use std::ptr::NonNull;
+use std::{ptr::NonNull, sync::RwLockReadGuard};
 
-pub struct SpriteBinding
+use crate::*;
+
+#[must_use]
+/// runtime instance of a sprite, contains both the texture and all the instances
+pub struct Sprite
 {
+    pub(crate) sprite: Box<SpriteImpl>,
+    ///// this is used only on drop to remove the reference to this [Sprite]
+    pub(crate) sprites: NonNull<Vec<NonNull<SpriteImpl>>>
+}
 
-    pub(crate) ctx: crate::ContextHandle,
+impl Sprite
+{
+    pub fn new (renderer: &mut crate::Renderer, loader: crate::SpriteLoader) -> Self
+    {
+        renderer.load_sprite(loader)
+    }
+}
 
+impl std::ops::Deref for Sprite
+{
+    type Target = SpriteImpl;
+
+    fn deref(&self) -> &Self::Target
+    {
+        self.sprite.as_ref()
+    }
+}
+
+impl std::ops::DerefMut for Sprite
+{
+    fn deref_mut(&mut self) -> &mut Self::Target
+    {
+        self.sprite.as_mut()
+    }
+}
+
+impl Drop for Sprite
+{
+    fn drop(&mut self)
+    {
+        // remove the reference to this sprite
+        // from the spritepass as it's about to be dropped.
+        unsafe 
+        {
+            self.sprites.as_mut()
+                .retain
+                (
+                    |sprite| (&mut *self.sprite) as *mut SpriteImpl == sprite.as_ptr()
+                )
+                //.expect
+                //(
+                //    "attempted to remove a sprite,
+                //    but the id dind't correspond to anything"
+                //);
+        }          
+    }
+}
+
+impl std::ops::Index<usize> for Sprite
+{
+    type Output = SpriteInstance;
+
+    fn index(&self, index: usize) -> &Self::Output
+    {
+        &self.instances[index]
+    }
+}
+
+// index mut very likely sucks performance whise
+// since it both iterates and recreates the instance buffer for just one item mutation
+impl std::ops::IndexMut<usize> for Sprite
+{
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output
+    {
+        self.iter_mut().nth(index).unwrap()
+    }
+}
+
+pub struct SpriteImpl
+{
     pub(crate) instances: Vec<SpriteInstance>,
+    pub(crate) slice: SpriteSlice,
+    pub(crate) pivot: Option<Vec2>,
 
     /// the texture that the sprite will use
-    pub(crate) texture: crate::Texture,
-
-    pub(crate) binding: Box<SpriteGpuBinding>,
+    pub(crate) texture: TextureData,
 }
 
-/// represents a single instance of a sprite
-pub struct SpriteInstance
+/// impl containing sprite loading
+impl SpriteImpl
 {
-    /// the transform matrix of this instance
-    pub transform: crate::Transform,
-    /// the section to render if this is a spritesheet
-    pub section: SheetSection
-}
-
-impl SpriteInstance
-{
-    #[inline]
-    fn as_raw(&self) -> SpriteInstanceRaw
-    {
-        SpriteInstanceRaw
-        {
-            transform: self.transform.as_raw(),
-            index: self.section.index
-        }
-    }
-
-    #[inline]
-    /// rotates along the y axis to face the camera
-    pub fn billboard_y(&mut self, cam: &mut crate::Camera)
-    {
-        self.transform.orientation = cam.data.borrow().orientation();
-        self.transform.orientation.y *= -1.;
-    }
-
-    #[inline]
-    /// rotates along the x and y axis to face the camera
-    pub fn billboard_xy(&mut self, cam: &mut crate::Camera)
-    {
-        self.transform.orientation = cam.data.borrow().orientation().inverse()
-    }
-
-    pub fn position(&self) -> baguette_math::Vec3
-    {
-        self.transform.translation
-    }
-
-    pub fn scale(&self) -> baguette_math::Vec3
-    {
-        self.transform.scale
-    }
-
-    pub fn orientation(&self) -> baguette_math::math::Quat
-    {
-        self.transform.orientation
-    }
-}
-
-#[derive(Clone)]
-pub struct Tiles { index: usize, indices: Box<[u32]> }
-
-//impl Tiles
-//{
-//    pub fn new(indices: impl IntoIndices) -> Option<Self>
-//    {
-//        indices.into_indices(layout)
-//    }
-//}
-
-#[derive(Clone, Default)]
-pub struct SheetSection
-{
-    /// describes the layout of the sheet for bound checking
-    /// and for index multiplication, since we need to know the amount of 
-    /// sections per row we keep this value around
-    layout: SpriteLayout,
-    indices: Option<Tiles>,
-    /// the index into the uv buffer for this section
-    index: u32
-}
-
-impl SheetSection
-{
-    pub fn empty() -> Self
-    {
-        Self
-        {
-            layout: SpriteLayout{ rows: 1, columns: 1 },
-            indices: None,
-            index: 0,
-        }
-    }
-
-    /// sets the index of the sheet to render with the provided row and column value
-    pub fn set(&mut self, row: u32, column: u32)
-    {
-        // we clamp the max value possible to the length of the uv buffer, whose value is
-        // determined by (rows * columns -1 ) * 4
-        self.index = u32::min
-        (
-            column * self.layout.rows + row,
-            (self.layout.rows * self.layout.columns) -1
-        ) * 4
-    }
-
-    /// sets the index of the spritesheet's section to the next one
-    /// or the first one if it exceeds the maximum avaiable index
-    pub fn next_or_first(&mut self)
-    {
-        self.index = match self.indices
-        {
-            Some(ref mut tiles) => match tiles.indices.get(tiles.index + 1)
-            {
-                Some(&next_index) =>
-                {
-                    tiles.index += 1;
-                    next_index * 4
-                }
-                None =>
-                {
-                    tiles.index = 0;
-                    tiles.indices[0] * 4
-                }
-            }
-            
-            None => match self.index + 4 <= (self.layout.rows * self.layout.columns - 1) * 4
-            {
-                true => self.index + 4,
-                false => 0
-            }
-        }
-    }
-
-    /// set which indices will be avaiable for playing.
-    /// 
-    /// # examples
-    /// 
-    /// accepted values are:
-    /// 
-    /// * [std::ops::Range]
-    /// ```
-    ///     section.set_indices(0..2);
-    /// ```
-    /// * [std::ops::RangeInclusive]
-    /// ```
-    ///     [std::ops::Range]
-    ///     section.set_indices(0..=1);
-    /// ```
-    /// 
-    /// * iterators of type [(u32, u32)] where the first integer represents the `row`
-    /// 
-    ///     while the second represents the `comumn`:
-    /// 
-    /// ```
-    ///     section.set_indices([(0,0),(1,0),(2,0),(3,0)]);
-    /// 
-    ///     section.set_indices(vec![(0,1),(1,1),(2,1)]);
-    /// ```
-    pub fn set_indices(&mut self, items: impl IntoIndices)
-    {
-        self.indices = items.into_indices(self.layout);
-        self.index = match &self.indices
-        {
-            Some(tiles) => tiles.index as u32,
-            None => 0
-        }
-    }
-}
-
-pub trait IntoIndices 
-{
-    /// converts an iteration to an array of indices
-    /// aligned to the correct uv instance uvs
-    fn into_indices(self,layout:SpriteLayout) -> Option<Tiles> ;
-}
-
-impl IntoIndices for std::ops::Range<u32>
-{
-    fn into_indices(self, layout:SpriteLayout) -> Option<Tiles>
-    {
-        let indices = self.into_iter()
-            .filter(|i| (i*4) <= (layout.rows*layout.columns-1) *4)
-            .collect:: <Box<[u32]>>();
-
-        match indices.len()>0 
-        {
-            true => Some(Tiles { index:0, indices }),
-            false => None 
-        }
-    }
-}
-
-impl IntoIndices for std::ops::RangeInclusive<u32>
-{
-    fn into_indices(self, layout:SpriteLayout) -> Option<Tiles>
-    {
-        let indices = self.into_iter()
-            .filter(|i| (i*4) <= (layout.rows*layout.columns-1) *4)
-            .collect:: <Box<[u32]>>();
-
-        match indices.len()>0 
-        {
-            true => Some(Tiles { index:0, indices }),
-            false => None 
-        }
-    }
-}
-
-impl IntoIndices for std::ops::RangeFull
-{
-    fn into_indices(self, _ : SpriteLayout) -> Option<Tiles>
-    {
-        None 
-    }
-}
-
-impl IntoIndices for ()
-{
-    fn into_indices(self, _ :SpriteLayout) -> Option<Tiles>
-    {
-        None 
-    }
-}
-
-impl IntoIndices for &[u32]
-{
-    fn into_indices(self, layout:SpriteLayout) -> Option<Tiles>
-    {
-        let indices = self.iter()
-            .copied()
-            .filter(|i| (i*4) <= (layout.rows*layout.columns-1) *4)
-            .collect::<Box<[u32]>>();
-
-        match indices.len()>0 
-        {
-            true => Some(Tiles { index:0, indices }),
-            false => None 
-        }
-    }
-}
-
-impl IntoIndices for &[(u32,u32)]
-{
-    fn into_indices(self, layout:SpriteLayout) -> Option<Tiles>
-    {
-        let indices = self.iter()
-            .map(|(row,column)|column*layout.rows+row)
-            .filter(|i|(i*4)<=(layout.rows*layout.columns-1)*4)
-            .collect::<Box<[u32]>>();
-
-        match indices.len()>0 
-        {
-            true => Some(Tiles {index:0,indices}),
-            false => None
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(bytemuck::Pod,bytemuck::Zeroable,Clone,Copy)]
-struct SpriteInstanceRaw
-{
-    transform: crate::TransformRaw,
-    index: u32
-}
-
-/// impl containing sprite loading 
-impl SpriteBinding
-{
-    /// loads a [`SpriteSheetBinding`] from a [crate::SpriteLoader]
+    /// loads a [`SpriteSheetBinding`] from a [crate::SpriteLoader].
     ///
-    /// # Panics
-    ///
-    /// Panics if the path is not found
-    pub fn from_loader<T>(ctx: crate::ContextHandle, loader: crate::SpriteLoader<T>) -> Self
-        where
-            T: Into<std::ffi::OsString> + AsRef<std::path::Path>
+    /// panics if the path is not found
+    pub fn from_loader(ctx: &RwLockReadGuard<ContextHandleData>, loader: SpriteLoader) -> Self
     {
-        let (ref id, filtermode, instances, pxunit, layout ) = match loader
-        {
-            crate::SpriteLoader::SingleSprite { path, filtermode, mut instances, pxunit } =>
-            {
-                let mut _instances = Vec::with_capacity(instances.len());
+        let SpriteLoader { ref path, filtermode, pivot, mut instances, pxunit, rows, columns } = loader;
 
-                while let Some(transform) = instances.pop()
-                {
-                    _instances.push(SpriteInstance
-                    {
-                        transform,
-                        section: SheetSection::default()
-                    })
-                }
-
-                (path, filtermode, _instances, pxunit, SpriteLayout::default())
-            }
-            crate::SpriteLoader::SpriteSheet { path, filtermode, layout, mut instances, pxunit } =>
-            {
-                let mut _instances = Vec::with_capacity(instances.len());
-
-                while let Some((transform, indices)) = instances.pop()
-                {
-                    _instances.push
-                    (
-                        SpriteInstance
-                        {
-                            transform,
-                            section:
-                            {
-                                indices
-                                    .into_indices(layout)
-                                    .map_or_else(|| SheetSection
-                                {
-                                    layout,
-                                    index: 0,
-                                    indices: None
-                                }, |indices| SheetSection
-                                {
-                                    layout,
-                                    index: 0,
-                                    indices: Some(indices)
-                                })
-                            }
-                        }
-                    )
-                }
-
-                (path, filtermode, _instances, pxunit, layout )
-            }
-        };
-
-        let image = image::io::Reader::open(id)
+        let image = image::io::Reader::open(path)
             .unwrap()
             .decode()
             .expect("failed to decode image, unsupported format");
@@ -356,16 +118,13 @@ impl SpriteBinding
             depth_or_array_layers: 1
         };
 
-        let cxt_read = ctx.data.read().expect("woah you panicked, cool");
-
-        let texture = cxt_read.create_texture
+        let texture = ctx.create_texture
         (
             wgpu::TextureDescriptor
             {
                 size,
-                // we use the directory of the sprite we loaded
-                // as a debug label after a monstrous conversion
-                label: Some(id.as_ref().to_string_lossy().as_ref()),
+                // the label is the directory of the sprite we loaded
+                label: Some(&path.to_string_lossy()),
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
@@ -375,7 +134,7 @@ impl SpriteBinding
             }
         );
 
-        cxt_read.write_texture
+        ctx.write_texture
         (
             wgpu::ImageCopyTexture 
             {
@@ -395,7 +154,7 @@ impl SpriteBinding
         );
 
         let view = texture.create_view(&Default::default());
-        let sampler = cxt_read.create_sampler
+        let sampler = ctx.create_sampler
         (
             wgpu::SamplerDescriptor
             {
@@ -411,10 +170,10 @@ impl SpriteBinding
 
         // we adjust the dimensions of the vertex positions using the 
         // pixel per unit factor
-        let scale = baguette_math::Vec2::new
+        let scale = Vec2::new
         (
-            (dimensions.x / layout.columns) as f32 / pxunit,
-            (dimensions.y / layout.rows) as f32 / pxunit
+            dimensions.x as f32 / pxunit,
+            dimensions.y as f32 / pxunit
         );
 
         let vertices =
@@ -425,82 +184,40 @@ impl SpriteBinding
             [scale.x, scale.y]
         ];
 
-        let uvs =
+        let texture = crate::TextureData { texture, view, sampler, pxunit };
+
+        if instances.is_empty()
         {
-            let mut uvs = Vec::with_capacity
-            (
-                (layout.rows * layout.columns) as usize
-            );
-            
-            let rows = layout.rows as f32;
-            let columns = layout.columns as f32;
+            instances.push(SpriteInstance::default());
+        }
 
-            for i in 0..layout.rows * layout.columns 
-            {
-                uvs.append(&mut 
-                {
-                    // vertices with uncropped uvs
-                    // meaning that the entirety of the texture will be rendered
-                    let mut uvs = vec!
-                    [
-                        [0., 0.],
-                        [0., 1.],
-                        [1., 1.],
-                        [1., 0.]
-                    ];
-
-
-                    let pos =
-                    (
-                        (i % layout.columns) as f32,
-                        (i / layout.columns) as f32
-                    );
-
-                    // here we actually crop into the correct row and column
-                    for uv in uvs.iter_mut()
-                    {
-                        uv[0] = (uv[0] / columns) + pos.0 * (1. / columns);
-                        uv[1] = (uv[1] / rows) + pos.1 * (1. / rows)
-                    }
-                    uvs
-                })
-            }
-            uvs
-        };
-
-        let texture = crate::Texture { texture, view, sampler, pxunit };
+        let slice = SpriteSlice::new(vertices, rows, columns);
 
         Self
         {
-            binding: Box::new(SpriteGpuBinding::new
-            (
-                cxt_read,
-                &instances, &vertices, &uvs, id.as_ref().as_os_str(), &texture
-            )),
             instances,
             texture,
-            ctx,
+            pivot,
+            slice,
         }
-        
-    } 
+    }
 }
 
-impl SpriteBinding
+impl SpriteImpl
 {
-    /// iters the instances and will update the gpu data afterward
-    pub fn iter_instances_mut(&mut self) -> SpriteIterMut
+    /// iters the instances mutably
+    pub fn iter_mut(&mut self) -> SpriteIterMut
     {
         SpriteIterMut
         {
             instances: (&mut self.instances).into(),
-            instance_buffer: &self.binding.instance_buffer.0,
-            index: 0,
-            ctx: self.ctx.clone(),
+            iter_index: 0,
+            phantom: std::marker::PhantomData,
         }
     }
 
     /// iters the instances immutably
-    pub fn iter_instances(&self) -> std::slice::Iter<'_, SpriteInstance>
+    pub fn iter(&self) -> std::slice::Iter<'_, SpriteInstance>
     {
         self.instances.iter()
     }
@@ -511,115 +228,91 @@ impl SpriteBinding
         self.texture.size()
     }
 
-    pub fn add_instances(&mut self, ctx: &crate::ContextHandleData, mut new_instances: Vec<SpriteInstance>)
+    //pub fn add_instances(&mut self, ctx: &crate::ContextHandleData, mut new_instances: Vec<SpriteInstance>)
+    //{
+    //    // we add the new instances
+    //    self.instances.append(&mut new_instances);         
+
+    //    // .. then recreate the buffer to update it with the added instance
+    //    let data: Vec<SpriteInstanceRaw> = self.instances.iter()
+    //        .map(|f| f.as_raw())
+    //        .collect();
+
+    //    ctx.write_buffer(&self.binding.instance_buffer.0, &data)
+    //}
+}
+
+#[derive(Clone, Debug)]
+/// represents a single instance of a sprite
+pub struct SpriteInstance
+{
+    pub translation: Vec3,
+    pub orientation: Quat,
+    pub scale: Vec3,
+}
+
+impl Default for SpriteInstance
+{
+    fn default() -> Self
     {
-        // we add the new instances
-        self.instances.append(&mut new_instances);         
-
-        // .. then recreate the buffer to update it with the added instance
-        let data: Vec<SpriteInstanceRaw> = self.instances.iter()
-            .map(|f| f.as_raw())
-            .collect();
-
-        ctx.write_buffer(&self.binding.instance_buffer.0, &data)
+        Self
+        {
+            translation: Vec3::default(),
+            orientation: Quat::default(),
+            scale: Vec3::ONE
+        }
     }
 }
 
-/// sprite gpu binding
-pub(super) struct SpriteGpuBinding
+impl SpriteInstance
 {
-    pub vertex_buffer: wgpu::Buffer,
+    #[inline]
+    pub(crate) fn as_raw(&self, bind_idx: u32) -> SpriteInstanceRaw
+    {
+        SpriteInstanceRaw
+        {
+            transform: self.compute().to_cols_array_2d(),
+            uv_idx: 0,
+            bind_idx,
+        }
+    }
 
-    /// contains the buffer and the instance count
-    pub instance_buffer: (wgpu::Buffer,u32),
+    #[inline]
+    /// rotates along the y axis to face the camera
+    pub fn billboard_y(&mut self, cam: &mut crate::Camera)
+    {
+        self.orientation = cam.data.borrow().orientation();
+        self.orientation.y *= -1.;
+    }
 
-    pub bindgroup: wgpu::BindGroup,
-
-    pub z_order: Option<f32>,
-
-    /// unique id to keep track of this binding
-    pub id: Option<u32>
+    #[inline]
+    /// rotates along the x and y axis to face the camera
+    pub fn billboard_xy(&mut self, cam: &mut crate::Camera)
+    {
+        self.orientation = cam.data.borrow().orientation().inverse()
+    }
 }
 
-impl SpriteGpuBinding
+impl crate::TransformCompute for SpriteInstance
 {
-    fn new
-    (
-        ctx_read: std::sync::RwLockReadGuard<'_, crate::ContextHandleData>,
-        instances: &[SpriteInstance], vertices: &[[f32;2]], uvs: &[[f32;2]],
-        id: &std::ffi::OsStr, texture: &crate::Texture
-    ) -> Self
+    fn compute(&self) -> Mat4
     {
-        let uvs_storage_buffer = ctx_read.create_buffer_init
-        (
-            wgpu::util::BufferInitDescriptor
-            {
-                label: Some("uvs storage buffer"),
-                contents: bytemuck::cast_slice(uvs),
-                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST
-            }
-        );
-
-        Self
-        {
-            vertex_buffer: ctx_read.create_buffer_init
+        //if let Some(pivot) = self.pivot 
+        //{
+        //    Mat4::from_translation(vec3(pivot.x, pivot.x, 0.)) *
+        //    Mat4::from_scale(self.scale) * 
+        //    Mat4::from_quat(self.orientation) * 
+        //    Mat4::from_translation(-vec3(pivot.x, pivot.x, 0.)) *
+        //    Mat4::from_translation(self.translation)
+        //}
+        //else
+        //{
+            Mat4::from_scale_rotation_translation
             (
-                wgpu::util::BufferInitDescriptor
-                {
-                    label: Some("vertex buffer"),
-                    contents: bytemuck::cast_slice(vertices),
-                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST
-                }
-            ),
-            instance_buffer:
-            {
-                let instances = instances
-                    .iter()
-                    .map(|instance| instance.as_raw())
-                    .collect::<Vec<SpriteInstanceRaw>>();
+                self.scale, self.orientation, self.translation
+            )
+        //}
 
-                (
-                    ctx_read.create_buffer_init
-                    (
-                        wgpu::util::BufferInitDescriptor
-                        {
-                            label: Some("instances"),
-                            contents: bytemuck::cast_slice(&instances),
-                            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST
-                        }
-                    ),
-                    instances.len().try_into().expect("expected a little less instances")
-                )
-            },
-            bindgroup: ctx_read.create_bindgroup(wgpu::BindGroupDescriptor
-            {
-                label: Some(&("sprite sheet bindgroup, id: ".to_owned() + &id.to_string_lossy())),
-                layout: &bindgroup_layout(&ctx_read),
-                entries: 
-                &[
-                    wgpu::BindGroupEntry
-                    {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&texture.view)
-                    },
-                    wgpu::BindGroupEntry
-                    {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&texture.sampler)
-                    },
-                    wgpu::BindGroupEntry
-                    {
-                        binding: 2,
-                        resource: wgpu::BindingResource::Buffer
-                        (
-                            uvs_storage_buffer.as_entire_buffer_binding()
-                        )
-                    }
-                ]
-            }),
-            id: Some(baguette_math::rand::u32(..)),
-            z_order: {println!("todo set z_order"); None},
-        }
     }
 }
 
@@ -641,90 +334,12 @@ impl Default for SpriteLayout
     }
 }
 
-#[must_use]
-/// runtime instance of a sprite, contains both the texture and all the instances
-pub struct Sprite
-{
-    pub(crate) sprite: SpriteBinding,
-    /// this is only used on drop to remove the reference to this [Sprite]
-    pub(crate) spritebuffer: NonNull<Vec<NonNull<SpriteGpuBinding>>>,
-}
-
-impl Sprite
-{
-    pub fn new<T>(renderer: &mut crate::Renderer, sprite: crate::SpriteLoader<T>) -> Self
-    where
-        T: Into<std::ffi::OsString> + AsRef<std::path::Path>
-    {
-        renderer.load_sprite(sprite)
-    }
-}
-
-impl std::ops::Deref for Sprite
-{
-    type Target = SpriteBinding;
-
-    fn deref(&self) -> &Self::Target
-    {
-        &self.sprite
-    }
-}
-
-impl std::ops::DerefMut for Sprite
-{
-    fn deref_mut(&mut self) -> &mut Self::Target
-    {
-        &mut self.sprite
-    }
-}
-
-impl Drop for Sprite
-{
-    fn drop(&mut self)
-    {
-        // remove any reference to this sprite as it's about to be dropped.
-        // if this is None it means the renderpass has been dropped
-        // so we wouldn't need to do any extra work
-        if let Some(id) = self.binding.id
-        {
-            unsafe 
-            {
-                self.spritebuffer.as_mut().retain
-                (
-                    |sprite| sprite.as_ref().id.unwrap() != id
-                )
-            }  
-        }     
-    }
-}
-
-impl std::ops::Index<usize> for Sprite
-{
-    type Output = SpriteInstance;
-
-    fn index(&self, index: usize) -> &Self::Output
-    {
-        &self.instances[index]
-    }
-}
-
-// index mut very likely sucks performance whise
-// since it both iterates and recreates the instance buffer for just one item mutation
-impl std::ops::IndexMut<usize> for Sprite
-{
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output
-    {
-        self.iter_instances_mut().nth(index).unwrap()
-    }
-}
-
 pub struct SpriteIterMut<'a>
 {
-    instances: core::ptr::NonNull<Vec<SpriteInstance>>,
-    instance_buffer: &'a wgpu::Buffer,
-    ctx: crate::ContextHandle,
+    instances: NonNull<Vec<SpriteInstance>>,
 
-    index: usize
+    iter_index: usize,
+    phantom: std::marker::PhantomData<&'a ()>
 }
 
 impl<'a> Iterator for SpriteIterMut<'a>
@@ -739,83 +354,32 @@ impl<'a> Iterator for SpriteIterMut<'a>
         {
             self.instances
                 .as_mut()
-                .get_mut(self.index)
+                .get_mut(self.iter_index)
         };
         
-        self.index += 1;
+        self.iter_index += 1;
 
         next
     }
 }
 
-// we use the drop trait to update the instance buffer,
-// we assume that there is no mutation after dropping the iterator
-// so this should be the place to do it
-impl Drop for SpriteIterMut<'_>
-{
-    fn drop(&mut self)
-    {
-        // SAFETY: we iter the slice reading the values, but we leave the mutation of the buffer to wgpu
-        {
-            let instances = unsafe { self.instances.as_ref() }
-                .iter()
-                .map(SpriteInstance::as_raw)
-                .collect::<Vec<SpriteInstanceRaw>>();
-
-            self.ctx.data
-                .write()
-                .expect("failed to update instance buffer")
-                .write_buffer(self.instance_buffer, &instances);
-        }
-    }
-}
-
 /// constant indices describing the order to draw
 /// a rectangle to render a 2d sprite
-pub(crate) const SPRITE_INDICES: [u16; 6] =
+pub(crate) const SPRITE_INDICES_U16: [u16; 6] =
 [
     0, 1, 2, 2, 3, 0
 ];
 
-/// the bindgroup layout of the sprite
-pub(super) fn bindgroup_layout(ctx_read: &std::sync::RwLockReadGuard<crate::ContextHandleData>) -> wgpu::BindGroupLayout
+pub(crate) const SPRITE_INDICES_U32: [u32; 6] =
+[
+    0, 1, 2, 2, 3, 0
+];
+
+/// describes the sorting order, if present, of the sprites
+pub enum SpriteSorting
 {
-    ctx_read.create_bindgroup_layout(wgpu::BindGroupLayoutDescriptor 
-    {
-        entries:
-        &[
-            wgpu::BindGroupLayoutEntry
-            {
-                binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Texture 
-                {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                    sample_type: wgpu::TextureSampleType::Float { filterable: true }
-                },
-                count: None
-            },
-            wgpu::BindGroupLayoutEntry 
-            {
-                binding: 1,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                count: None
-            },
-            wgpu::BindGroupLayoutEntry 
-            {
-                binding: 2,
-                visibility: wgpu::ShaderStages::VERTEX,
-                ty: wgpu::BindingType::Buffer
-                {
-                    ty: wgpu::BufferBindingType::Storage{ read_only: true },
-                    has_dynamic_offset: false, min_binding_size: None
-                },
-                count: None
-            }
-        ],
-            label: Some("sprite layout")
-        }
-    )
+    X,
+    Y,
+    Z,
+    None
 }
