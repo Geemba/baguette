@@ -48,6 +48,13 @@ impl ContextHandleData
     {
         queue(self).write_buffer(buffer, 0, bytemuck::cast_slice(data))
     }
+
+    #[inline]
+    pub fn write_buffer_with_offset<T: bytemuck::NoUninit>(&self, buffer : &Buffer,offset: u64, data : &[T])
+    {
+        queue(self).write_buffer(buffer, offset, bytemuck::cast_slice(data))
+    }
+
     #[inline]
     pub fn create_sampler(&self, desc: SamplerDescriptor) -> Sampler
     {
