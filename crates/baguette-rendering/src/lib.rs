@@ -11,9 +11,12 @@ pub use image;
 pub mod sprite;
 pub use sprite::Sprite;
 pub use sprite::SpriteLayout;
+pub use sprite::SpriteInstance;
 
 #[path ="rendering/2d/spritesheet.rs"]
 pub mod spritesheet;
+pub use spritesheet::SpriteSheet;
+pub use spritesheet::SpriteSheetLoader;
 
 #[path ="rendering/renderer.rs"]
 pub mod renderer;
