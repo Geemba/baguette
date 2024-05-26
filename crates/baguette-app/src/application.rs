@@ -174,6 +174,11 @@ impl<'a> App<'a>
         self.ui().context().send_viewport_cmd(rendering::ui::egui::ViewportCommand::Close)
     }
 
+    /// returns the screen size in the format you decide,
+    /// ex:
+    /// ```
+    /// app.screen_size::<f32>()
+    /// ```
     pub fn screen_size<T>(&self) -> input::winit::dpi::PhysicalSize<T>
         where T: input::winit::dpi::Pixel
     {
