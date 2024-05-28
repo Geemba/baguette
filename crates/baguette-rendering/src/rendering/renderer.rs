@@ -73,7 +73,7 @@ impl RendererData
         self.camera.data.borrow_mut()
     }
 
-    pub fn resize(&mut self, (width,height): (u32,u32))
+    pub fn resize(&mut self, (width, height): (u32,u32))
     {
         let mut ctx_write = self.ctx.data.write().expect("aonna it crashed");
         ctx_write.screen.config.width = width;
@@ -91,9 +91,6 @@ impl RendererData
 
         // resize camera to match new screen size
         self.camera().resize(physical_width / physical_height);
-        
-
-        //CameraData::resize_all(physical_width / physical_height);
 
         self.update_surface()
     }
@@ -102,6 +99,8 @@ impl RendererData
     /// or by returning the existing one.
     fn get_or_insert_pass<T: RenderPass + 'static>(&mut self) -> &mut T
     {
+        use std::any::Any;
+
         let passes = self.passes.get_or_insert_with(RenderPasses::new);
 
         // this is a bunch of boilerplate for type conversion 
@@ -109,7 +108,8 @@ impl RendererData
         (
             |&i| match &mut passes.renderpasses[i]
             {
-                Passes::SpriteSheet(p) => p as &mut dyn std::any::Any,
+                Passes::SpriteSheet(p) => p as &mut dyn Any,
+                Passes::Tilemap(p) => p as &mut dyn Any,
             }.is::<T>()
         )
         {
@@ -123,10 +123,12 @@ impl RendererData
         (
             match pass
             {
-                Passes::SpriteSheet(p) => p as &mut dyn std::any::Any,
-            }         
+                Passes::SpriteSheet(p) => p as &mut dyn Any,
+                Passes::Tilemap(p) => p as &mut dyn Any,
+            }
         )
-        // all type checking has been done before reaching this point so its safe to assume this is Some
+        // all type checking has been done before reaching this point
+        // so unwrapping is safe
         .downcast_mut().unwrap()
         
     }
@@ -423,7 +425,7 @@ struct FrameOutput
 }
 impl FrameOutput
 {
-    fn new(device: &wgpu::Device, width: u32,height: u32) -> Self 
+    fn new(device: &wgpu::Device, width: u32, height: u32) -> Self 
     {
         let module = &device.create_shader_module
         (
