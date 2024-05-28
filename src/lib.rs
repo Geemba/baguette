@@ -126,6 +126,13 @@ impl<T> AppBuilder<T>
         self
     }
 
+    /// set the screen size in pixels
+    pub fn set_screen_size(mut self, width: u32, heigth: u32) -> Self
+    {
+        self.w_attributes = self.w_attributes.with_inner_size(dpi::PhysicalSize::new(width, heigth));
+        self
+    }
+
     /// sets the window `icon` from a `byte slice`
     /// 
     /// # example
