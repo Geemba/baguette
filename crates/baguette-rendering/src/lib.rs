@@ -34,6 +34,10 @@ pub use renderpasses::*;
 pub mod spritepass;
 pub use spritepass::*;
 
+#[path = "rendering/2d/tilemap.rs"]
+pub mod tilemap;
+pub(crate) use tilemap::TilemapPass;
+
 #[path ="rendering/camera.rs"]
 pub mod camera;
 pub use camera::*;

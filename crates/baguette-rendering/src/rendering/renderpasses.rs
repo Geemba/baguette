@@ -2,8 +2,10 @@ pub use crate::*;
 
 pub enum Passes
 {
-    /// pass tasked with rendering sprites
+    Tilemap(TilemapPass),
+    /// pass that draws 2d sprites
     SpriteSheet(SpritePass),
+
 }
 
 impl Passes
@@ -20,6 +22,7 @@ impl Passes
         match self
         {
             Self::SpriteSheet(pass) => pass as &mut dyn RenderPass,
+            Self::Tilemap(pass) => pass as &mut dyn RenderPass,
         }.draw(ctx, pass, camera)
     }
 }
