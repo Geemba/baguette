@@ -1,13 +1,15 @@
-use std::{num::NonZeroU32, sync::RwLockReadGuard};
-
+use std::{num::NonZeroU32};
 use baguette_math::{Mat4, Vec2};
-use wgpu::{BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, Buffer, BufferUsages, ShaderStages, SurfaceError};
 
-type ContextRead<'a> = RwLockReadGuard<'a, ContextHandleData>;
+use wgpu::
+{
+    include_wgsl, util::BufferInitDescriptor, vertex_attr_array, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource, BlendState, Buffer, BufferDescriptor, BufferUsages, ColorTargetState, ColorWrites, Extent3d, FragmentState, MultisampleState, PipelineLayoutDescriptor, PrimitiveState, RenderPipeline, RenderPipelineDescriptor, ShaderModuleDescriptor, ShaderStages, SurfaceError, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView, VertexBufferLayout, VertexState
+};
 
 use crate::
 {
-    CameraData, ContextHandle, ContextHandleData, Passes, RenderPass, TextureData
+    CameraData, ContextHandle, ContextHandleData,
+    Passes, RenderPass, TextureData
 };
 
 pub struct TilemapPass
@@ -38,14 +40,22 @@ impl RenderPass for TilemapPass
     fn draw<'a>
     (
         &'a mut self,
-        ctx: &ContextRead,
+        ctx: &ContextHandleData,
         pass: &mut wgpu::RenderPass<'a>,
         camera: &'a CameraData
 
     ) -> Result<(), SurfaceError>
     {
-        pass.set_bind_group(0, &camera.bindings.bindgroup, &[]);
+        pass.set_pipeline(&self.binding.pipeline);
 
+        pass.set_bind_group(0, &camera.bindings.bindgroup, &[]);
+        pass.set_bind_group(1, &self.binding.bindgroup, &[]);
+
+        pass.set_vertex_buffer(0, self.binding.vert_buffer.slice(..));
+        pass.set_vertex_buffer(0, self.binding.instance_buffer.slice(..));
+
+        pass.draw(0..6, 0..1);
+        
         Ok(())
     }
 }
@@ -58,8 +68,11 @@ pub struct Tile
 
 pub struct TilemapBinding
 {
+    pipeline: RenderPipeline,
     bindgroup: BindGroup,
     textures: Vec<TextureData>,
+    vert_buffer: Buffer,
+    instance_buffer: Buffer,
     mat_buffer: Buffer
 }
 
@@ -68,8 +81,14 @@ impl TilemapBinding
     pub fn new(ctx: ContextHandle) -> Self
     {
         let ctx = ctx.read().unwrap();
-
-        let textures = vec![];
+        
+        let textures = vec!
+        [
+            TextureData::from_bytes
+            (
+                &ctx.device, &ctx.queue, include_bytes!(r"D:\dev\Rust\baguette\assets\green dude.png"), "label"
+            ).unwrap()
+        ];
 
         let matrix = Mat4::IDENTITY.to_cols_array_2d();
 
@@ -80,66 +99,224 @@ impl TilemapBinding
             usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         });
 
+        let (width,height) = ctx.screen.size();
+
+        let layers_texture = ctx.create_texture(TextureDescriptor
+        {
+            label: None,
+            size: Extent3d
+            {
+                width: std::cmp::max(width, 1),
+                height: std::cmp::max(height, 1),
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: TextureDimension::D2,
+            format: TextureFormat::R32Uint,
+            usage: TextureUsages::STORAGE_BINDING,
+            view_formats: &[],   
+        }).create_view(&Default::default());
+
+        let pipe_layout = ctx.create_pipeline_layout
+        (
+            PipelineLayoutDescriptor
+            {
+                label: Some(&format!("tilemap pipeline layout, {} textures", textures.len())),
+                bind_group_layouts: 
+                &[
+                    &crate::camera_bindgroup_layout(&ctx),
+                    &Self::create_layout(&ctx)
+                ],
+                push_constant_ranges: &[]
+            }
+        );
+
+        let shader = ctx.create_shader_module(include_wgsl!("tilemap.wgsl"));
+        
+        let pipeline = ctx.create_render_pipeline(RenderPipelineDescriptor
+        {
+            label: Some(&format!("tilemap pipeline, {} textures", textures.len())),
+            layout: Some(&pipe_layout),
+            vertex: VertexState
+            {
+                module: &shader,
+                entry_point: "vertex",
+                buffers:
+                &[
+                    VertexBufferLayout
+                    {
+                        array_stride: std::mem::size_of::<[f32; 2]>() as u64,
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &vertex_attr_array![0 => Float32x2],
+                    },
+                    VertexBufferLayout
+                    {
+                        array_stride: std::mem::size_of::<[f32; 4]>() as u64,
+                        step_mode: wgpu::VertexStepMode::Instance,
+                        attributes: &vertex_attr_array![1 => Float32x2, 2 => Float32x2]
+                    }
+                ],
+            },
+            fragment: Some(FragmentState
+            {
+                module: &shader,
+                entry_point: "fragment",
+                targets:
+                &[
+                    Some(ColorTargetState
+                    {
+                        format: ctx.screen.config.format,
+                        write_mask: ColorWrites::ALL,
+                        blend: Some(BlendState::ALPHA_BLENDING)
+                    })
+                ]
+            }),
+            primitive: PrimitiveState
+            {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: None,
+                unclipped_depth: false,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: MultisampleState::default(),
+            multiview: None,
+        });
+        
+        let vertices: [[f32; 2]; 4] =
+        [
+            [-1., 1.],
+            [-1., -1.],
+            [1., -1.],
+            [1., 1.]
+        ];
+
+        let vert_buffer = ctx.create_buffer_init(BufferInitDescriptor
+        {
+            label: Some("tilemap vertex buffer"),
+            contents: bytemuck::cast_slice(&vertices),
+            usage: BufferUsages::VERTEX,
+        });
+
+        let instance: [[f32; 2]; 2] = [[0.,0.], [0.,1.]];
+
+        let instance_buffer = ctx.create_buffer_init(BufferInitDescriptor
+        {
+            label: Some("tilemap vertex buffer"),
+            contents: bytemuck::cast_slice(&instance),
+            usage: BufferUsages::VERTEX,
+        });
+
         Self
         {
-            bindgroup: Self::create_bindgroup(&ctx, &textures, &mat_buffer),
+            bindgroup: Self::create_bindgroup(&ctx, &textures, &mat_buffer, &layers_texture),
             textures,
             mat_buffer,
+            pipeline,
+            vert_buffer,
+            instance_buffer,
         }
     }
 
-    fn create_bindgroup(ctx: &ContextRead, textures: &[TextureData], matrix_buffer: &Buffer) -> BindGroup
+    fn create_bindgroup
+    (
+        ctx: &ContextHandleData,
+        textures: &[TextureData],
+        matrix_buffer: &Buffer,
+        layer_texture: &TextureView
+    ) -> BindGroup
     {
         let views = textures.iter().map(|data| &data.view).collect::<Vec<_>>();
         let samplers = textures.iter().map(|data| &data.sampler).collect::<Vec<_>>();
 
         ctx.create_bindgroup(BindGroupDescriptor
         {
-            label: Some("tilemap bindgroup"),
+            label: Some
+            (
+                &format!("tilemap bindgroup with {} textures", views.len())
+            ),
             layout: &Self::create_layout(ctx),
-            entries: &
-            [
+            entries:
+            &[
                 BindGroupEntry
                 {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureViewArray(&views)
+                    resource: BindingResource::TextureViewArray(&views)
                 },
                 BindGroupEntry
                 {
                     binding: 1,
-                    resource: wgpu::BindingResource::SamplerArray(&samplers)
+                    resource: BindingResource::SamplerArray(&samplers)
                 },
                 BindGroupEntry
                 {
                     binding: 2,
                     resource: matrix_buffer.as_entire_binding()
+                },
+                BindGroupEntry
+                {
+                    binding: 3,
+                    resource: BindingResource::TextureView(layer_texture)
                 }
             ]
         })
     }
 
-    fn create_layout(ctx: &ContextRead) -> BindGroupLayout
+    fn create_layout(ctx: &ContextHandleData) -> BindGroupLayout
     {
-        ctx.create_bindgroup_layout(
-            wgpu::BindGroupLayoutDescriptor
-            {
-                label: Some("tilemap bind layout"),
-                entries: &
-                [
-                    BindGroupLayoutEntry
+        ctx.create_bindgroup_layout(wgpu::BindGroupLayoutDescriptor
+        {
+            label: Some("tilemap bind layout"),
+            entries:
+            &[
+                BindGroupLayoutEntry
+                {
+                    binding: 0,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture
                     {
-                        binding: 0,
-                        visibility: ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture
-                        {
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false
-                        },
-                        count: NonZeroU32::new(1),
-                    }
-                ]
-            }
-        )
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false
+                    },
+                    count: NonZeroU32::new(1),
+                },
+                BindGroupLayoutEntry
+                {
+                    binding: 1,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: NonZeroU32::new(1),
+                },
+                BindGroupLayoutEntry
+                {
+                    binding: 2,
+                    visibility: ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer
+                    {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None
+                },
+                BindGroupLayoutEntry
+                {
+                    binding: 3,
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::StorageTexture
+                    {
+                        access: wgpu::StorageTextureAccess::ReadWrite,
+                        format: wgpu::TextureFormat::R32Uint,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                    },
+                    count: None
+                }
+            ]
+        })
     }
 }

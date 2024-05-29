@@ -17,7 +17,7 @@ impl Sprite
 {
     pub fn new (renderer: &mut crate::Renderer, loader: crate::SpriteLoader) -> Self
     {
-        renderer.load_sprite(loader)
+        renderer.add_sprite_renderer(loader)
     }
 }
 

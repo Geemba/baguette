@@ -34,11 +34,17 @@ impl Renderer<'_>
 
     /// loads a sprite to be rendered,
     /// uses a builder type to describe how the sprite will be loaded
-    pub fn load_sprite(&mut self, loader: SpriteLoader) -> Sprite
+    pub fn add_sprite_renderer(&mut self, loader: SpriteLoader) -> Sprite
     {
         let ctx = self.data.ctx.clone();
         let pass = self.data.get_or_insert_pass::<SpritePass>();
         pass.add_sprite(ctx, loader)
+    }
+
+    pub fn add_tilemap_renderer(&mut self)
+    {
+        let ctx = self.data.ctx.clone();
+        let pass = self.data.get_or_insert_pass::<TilemapPass>();
     }
 
     pub fn screen_size<T: input::winit::dpi::Pixel>(&self) -> input::winit::dpi::PhysicalSize<T>
@@ -711,6 +717,12 @@ impl Screen
     pub fn destroy(&mut self)
     {
         self.surface.take();
+    }
+
+    /// the size (in pixels) of the screen we are rendering to
+    pub fn size(&self) -> (u32,u32)
+    {
+        (self.config.width, self.config.height)
     }
 }
 
