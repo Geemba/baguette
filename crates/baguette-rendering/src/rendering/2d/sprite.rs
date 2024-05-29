@@ -71,13 +71,11 @@ impl std::ops::Index<usize> for Sprite
     }
 }
 
-// index mut very likely sucks performance whise
-// since it both iterates and recreates the instance buffer for just one item mutation
 impl std::ops::IndexMut<usize> for Sprite
 {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output
     {
-        self.iter_mut().nth(index).unwrap()
+        &mut self.sprite.instances[index]
     }
 }
 
@@ -97,7 +95,7 @@ impl SpriteImpl
     /// loads a [`SpriteSheetBinding`] from a [crate::SpriteLoader].
     ///
     /// panics if the path is not found
-    pub fn from_loader(ctx: &RwLockReadGuard<ContextHandleData>, loader: SpriteLoader) -> Self
+    pub fn from_loader(ctx: &ContextHandleData, loader: SpriteLoader) -> Self
     {
         let SpriteLoader { ref path, filtermode, pivot, instances, pxunit, rows, columns } = loader;
 
@@ -186,7 +184,7 @@ impl SpriteImpl
             [scale.x, scale.y]
         ];
 
-        let texture = crate::TextureData { texture, view, sampler, pxunit };
+        let texture = crate::TextureData { texture, view, sampler };
 
         let slice = SpriteSlice::new(vertices, rows, columns);
 
@@ -326,6 +324,11 @@ impl Default for SpriteLayout
 }
 
 pub(crate) const SPRITE_INDICES_U32: [u32; 6] =
+[
+    0, 1, 2, 2, 3, 0
+];
+
+pub(crate) const SPRITE_INDICES_U16: [u16; 6] =
 [
     0, 1, 2, 2, 3, 0
 ];
