@@ -90,7 +90,7 @@ impl RenderPass for SpritePass
     fn draw<'a>
     (
         &'a mut self, 
-        ctx: &RwLockReadGuard<ContextHandleData>,
+        ctx: &ContextHandleData,
         pass: &mut wgpu::RenderPass<'a>,
         camera: &'a camera::CameraData
         
