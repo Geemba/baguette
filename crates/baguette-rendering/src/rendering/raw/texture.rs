@@ -6,7 +6,6 @@ pub struct TextureData
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
     pub sampler: wgpu::Sampler,
-    pub pxunit: f32,
 }
 
 impl TextureData 
@@ -93,7 +92,7 @@ impl TextureData
             }
         );
 
-        Some(Self { texture, view, sampler, pxunit: 0. })
+        Some(Self { texture, view, sampler})
     }
 
     pub fn size(&self) -> baguette_math::Vec2
