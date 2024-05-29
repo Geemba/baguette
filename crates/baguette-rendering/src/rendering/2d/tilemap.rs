@@ -1,16 +1,5 @@
-use std::{num::NonZeroU32};
-use baguette_math::{Mat4, Vec2};
-
-use wgpu::
-{
-    include_wgsl, util::BufferInitDescriptor, vertex_attr_array, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutEntry, BindingResource, BlendState, Buffer, BufferDescriptor, BufferUsages, ColorTargetState, ColorWrites, Extent3d, FragmentState, MultisampleState, PipelineLayoutDescriptor, PrimitiveState, RenderPipeline, RenderPipelineDescriptor, ShaderModuleDescriptor, ShaderStages, SurfaceError, TextureDescriptor, TextureDimension, TextureFormat, TextureUsages, TextureView, VertexBufferLayout, VertexState
-};
-
-use crate::
-{
-    CameraData, ContextHandle, ContextHandleData,
-    Passes, RenderPass, TextureData
-};
+use wgpu::*;
+use crate::*;
 
 pub struct TilemapPass
 {
@@ -30,7 +19,7 @@ impl TilemapPass
     }
 }
 
-impl RenderPass for TilemapPass
+impl crate::RenderPass for TilemapPass
 {
     fn add_pass(ctx: ContextHandle) -> Passes
     {
@@ -40,7 +29,7 @@ impl RenderPass for TilemapPass
     fn draw<'a>
     (
         &'a mut self,
-        ctx: &ContextHandleData,
+        _: &ContextHandleData,
         pass: &mut wgpu::RenderPass<'a>,
         camera: &'a CameraData
 
@@ -52,9 +41,11 @@ impl RenderPass for TilemapPass
         pass.set_bind_group(1, &self.binding.bindgroup, &[]);
 
         pass.set_vertex_buffer(0, self.binding.vert_buffer.slice(..));
-        pass.set_vertex_buffer(0, self.binding.instance_buffer.slice(..));
+        pass.set_vertex_buffer(1, self.binding.instance_buffer.slice(..));
 
-        pass.draw(0..6, 0..1);
+        pass.set_index_buffer(self.binding.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+
+        pass.draw_indexed(0..SPRITE_INDICES_U16.len() as _, 0, 0..1);
         
         Ok(())
     }
@@ -72,6 +63,7 @@ pub struct TilemapBinding
     bindgroup: BindGroup,
     textures: Vec<TextureData>,
     vert_buffer: Buffer,
+    index_buffer: Buffer,
     instance_buffer: Buffer,
     mat_buffer: Buffer
 }
@@ -80,7 +72,7 @@ impl TilemapBinding
 {
     pub fn new(ctx: ContextHandle) -> Self
     {
-        let ctx = ctx.read().unwrap();
+        let ctx = ctx.data.read().unwrap();
         
         let textures = vec!
         [
@@ -126,7 +118,7 @@ impl TilemapBinding
                 bind_group_layouts: 
                 &[
                     &crate::camera_bindgroup_layout(&ctx),
-                    &Self::create_layout(&ctx)
+                    &Self::tilemap_bindgroup_layout(&ctx, textures.len() as _)
                 ],
                 push_constant_ranges: &[]
             }
@@ -152,7 +144,7 @@ impl TilemapBinding
                     },
                     VertexBufferLayout
                     {
-                        array_stride: std::mem::size_of::<[f32; 4]>() as u64,
+                        array_stride: std::mem::size_of::<[[f32; 2]; 2]>() as u64,
                         step_mode: wgpu::VertexStepMode::Instance,
                         attributes: &vertex_attr_array![1 => Float32x2, 2 => Float32x2]
                     }
@@ -195,11 +187,19 @@ impl TilemapBinding
             [1., 1.]
         ];
 
+        use wgpu::util::BufferInitDescriptor;
         let vert_buffer = ctx.create_buffer_init(BufferInitDescriptor
         {
             label: Some("tilemap vertex buffer"),
             contents: bytemuck::cast_slice(&vertices),
             usage: BufferUsages::VERTEX,
+        });
+
+        let index_buffer = ctx.create_buffer_init(BufferInitDescriptor
+        {
+            label: Some("tilemap index buffer"),
+            contents: bytemuck::cast_slice(&SPRITE_INDICES_U16),
+            usage: BufferUsages::INDEX,
         });
 
         let instance: [[f32; 2]; 2] = [[0.,0.], [0.,1.]];
@@ -213,16 +213,17 @@ impl TilemapBinding
 
         Self
         {
-            bindgroup: Self::create_bindgroup(&ctx, &textures, &mat_buffer, &layers_texture),
+            bindgroup: Self::tilemap_bindgroup(&ctx, &textures, &mat_buffer, &layers_texture),
             textures,
             mat_buffer,
             pipeline,
             vert_buffer,
             instance_buffer,
+            index_buffer,
         }
     }
 
-    fn create_bindgroup
+    fn tilemap_bindgroup
     (
         ctx: &ContextHandleData,
         textures: &[TextureData],
@@ -239,7 +240,7 @@ impl TilemapBinding
             (
                 &format!("tilemap bindgroup with {} textures", views.len())
             ),
-            layout: &Self::create_layout(ctx),
+            layout: &Self::tilemap_bindgroup_layout(ctx, textures.len() as _),
             entries:
             &[
                 BindGroupEntry
@@ -266,8 +267,10 @@ impl TilemapBinding
         })
     }
 
-    fn create_layout(ctx: &ContextHandleData) -> BindGroupLayout
+    fn tilemap_bindgroup_layout(ctx: &ContextHandleData, count: u32) -> BindGroupLayout
     {
+        let count = std::num::NonZeroU32::new(count);
+
         ctx.create_bindgroup_layout(wgpu::BindGroupLayoutDescriptor
         {
             label: Some("tilemap bind layout"),
@@ -283,14 +286,14 @@ impl TilemapBinding
                         view_dimension: wgpu::TextureViewDimension::D2,
                         multisampled: false
                     },
-                    count: NonZeroU32::new(1),
+                    count,
                 },
                 BindGroupLayoutEntry
                 {
                     binding: 1,
                     visibility: ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: NonZeroU32::new(1),
+                    count,
                 },
                 BindGroupLayoutEntry
                 {
