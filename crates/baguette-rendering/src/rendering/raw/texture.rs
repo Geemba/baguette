@@ -1,5 +1,6 @@
 
 use image::GenericImageView;
+use crate::*;
 
 pub struct TextureData
 {
@@ -95,10 +96,10 @@ impl TextureData
         Some(Self { texture, view, sampler})
     }
 
-    pub fn size(&self) -> baguette_math::Vec2
+    pub fn size(&self) -> Vec2
     {
         let size = self.texture.size();
-        baguette_math::Vec2::new(size.width as f32, size.height as f32) 
+        Vec2::new(size.width as f32, size.height as f32) 
     }
 
 }
