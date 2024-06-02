@@ -125,11 +125,11 @@ impl AppData
         self.renderer.window.as_ref().unwrap()
     }
 
-    #[inline]
-    pub fn window_mut(&mut self) -> &mut rendering::Window
-    {
-        self.renderer.window.as_mut().unwrap()
-    }
+    //#[inline]
+    //pub fn window_mut(&mut self) -> &mut rendering::Window
+    //{
+    //    self.renderer.window.as_mut().unwrap()
+    //}
 
     pub fn check_input(&mut self, event: &input::WindowEvent)
     {
