@@ -40,7 +40,6 @@ impl ApplicationHandler for AppHandler
 {
     fn resumed(&mut self, event_loop: &ActiveEventLoop)
     {
-        //event_loop.create_window(self.window_attributes.clone());
         self.data.renderer.resume(event_loop);
         self.fsm.resume(&mut self.data.to_user_mut())
     }
@@ -179,7 +178,7 @@ impl<'a> App<'a>
     /// ```
     /// app.screen_size::<f32>()
     /// ```
-    pub fn screen_size<T>(&self) -> input::winit::dpi::PhysicalSize<T>
+    pub fn screen_size<T>(&self) -> (T,T)
         where T: input::winit::dpi::Pixel
     {
         self.renderer.screen_size::<T>()
