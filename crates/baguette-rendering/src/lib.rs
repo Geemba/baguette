@@ -15,9 +15,18 @@ pub use sprite::SpriteLayout;
 pub use sprite::SpriteInstance;
 
 #[path ="rendering/2d/spritesheet.rs"]
-pub mod spritesheet;
+pub(crate) mod spritesheet;
+pub use spritesheet::SheetSlices;
 pub use spritesheet::SpriteSheet;
 pub use spritesheet::SpriteSheetLoader;
+
+#[path = "rendering/2d/spritepass.rs"]
+pub(crate) mod spritepass;
+pub use spritepass::*;
+
+#[path = "rendering/2d/tilemap.rs"]
+pub(crate) mod tilemap;
+pub use tilemap::*;
 
 #[path ="rendering/renderer.rs"]
 pub mod renderer;
@@ -30,14 +39,6 @@ pub mod ui;
 #[path ="rendering/renderpasses.rs"]
 mod renderpasses;
 pub use renderpasses::*;
-
-#[path = "rendering/2d/spritepass.rs"]
-pub mod spritepass;
-pub use spritepass::*;
-
-#[path = "rendering/2d/tilemap.rs"]
-pub mod tilemap;
-pub(crate) use tilemap::TilemapPass;
 
 #[path ="rendering/camera.rs"]
 pub mod camera;
