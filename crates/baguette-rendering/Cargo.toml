@@ -5,16 +5,14 @@ edition = "2021"
 license.workspace = true
 
 [dependencies]
-wgpu = "0.18.0"
-#spin_sleep = "*"
+wgpu = "0.20"
 pollster = "*"
 bytemuck = { version = "*", features = [ "derive" ]}
 image = { version = "*", features = ["png", "jpeg"]}
 baguette-math = { workspace = true }
 input = { workspace = true }
 once_cell = "*"
-#raw-window-handle = "0.5.2"
-#disjoint_impls = "*"
+
 
 egui = { version = "*", features = ["bytemuck",] }
 type-map = "*"
