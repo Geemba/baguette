@@ -1,59 +1,68 @@
 pub use crate::*;
 
-pub enum Passes
-{
-    Tilemap(TilemapPass),
-    /// pass that draws 2d sprites
-    SpriteSheet(SpritePass),
 
+#[derive(Default)]
+pub(crate) struct RenderPasses(Vec<Pass>);
+
+impl std::ops::Deref for RenderPasses
+{
+    type Target = Vec<Pass>;
+
+    fn deref(&self) -> &Self::Target
+    {
+        &self.0
+    }
 }
 
-impl Passes
+impl std::ops::DerefMut for RenderPasses
+{
+    fn deref_mut(&mut self) -> &mut Self::Target
+    {
+        &mut self.0
+    }
+}
+
+pub(crate) enum Pass
+{
+    Sprite(SpritePass),
+    Tilemap(TilemapPass)
+}
+impl Pass 
 {
     pub(crate) fn draw<'a>
     (
-        &'a mut self,
-        ctx: &std::sync::RwLockReadGuard<ContextHandleData>,
+        &'a mut self, ctx: &ContextHandleInner,
         pass: &mut wgpu::RenderPass<'a>,
-        camera: &'a camera::CameraData
-    )
-    -> Result<(), wgpu::SurfaceError>
+        camera: &'a CameraData
+    ) -> Result<(), wgpu::SurfaceError>
     {
         match self
         {
-            Self::SpriteSheet(pass) => pass as &mut dyn RenderPass,
-            Self::Tilemap(pass) => pass as &mut dyn RenderPass,
-        }.draw(ctx, pass, camera)
+            Pass::Sprite(sprite_pass) => sprite_pass.draw(ctx, pass, camera),
+            Pass::Tilemap(tilemap_pass) => tilemap_pass.draw(ctx, pass, camera),
+        }
     }
 }
 
-pub(crate) struct RenderPasses
+impl From<SpritePass> for Pass
 {
-    pub renderpasses: Vec<Passes>
-}
-
-impl RenderPasses
-{
-    pub const fn new() -> Self { Self { renderpasses: vec![]} }
-    
-    /// immutable iteration
-    pub fn iter(&self) -> std::slice::Iter<Passes>
+    fn from(pass: SpritePass) -> Self
     {
-        self.renderpasses.iter()
+        Self::Sprite(pass)
     }
-
-    ///// mutable iteration
-    pub fn iter_mut(&mut self) -> std::slice::IterMut<Passes>
-    {
-        self.renderpasses.iter_mut()
-    }    
 }
 
-pub(crate) trait RenderPass
+impl From<TilemapPass> for Pass
 {
-    /// describes how to initialize this pass
-    fn add_pass(ctx: ContextHandle) -> Passes where Self: Sized;
-    
+    fn from(pass: TilemapPass) -> Self
+    {
+        Self::Tilemap(pass)
+    }
+}
+
+/// a trait implemented by draw commands 
+pub(crate) trait DrawPass: Into<Pass> + Default
+{    
     #[allow(clippy::cast_possible_truncation)]
     fn draw<'a>
     (
