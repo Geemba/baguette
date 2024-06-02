@@ -25,7 +25,7 @@ pub struct AppBuilder<T>
     fsm: T
 }
 
-/// same function as [new] but more fresh
+/// same function as [new] but with a freshy vibe, kinda
 pub fn fresh() -> AppBuilder<UninitDynFsm>
 {
     self::new()
