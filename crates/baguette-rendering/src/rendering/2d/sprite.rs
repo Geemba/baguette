@@ -1,4 +1,4 @@
-use std::{ptr::NonNull, sync::RwLockReadGuard};
+use std::ptr::NonNull;
 
 use crate::*;
 
@@ -17,7 +17,7 @@ impl Sprite
 {
     pub fn new (renderer: &mut crate::Renderer, loader: crate::SpriteLoader) -> Self
     {
-        renderer.add_sprite_renderer(loader)
+        renderer.add_sprite(loader)
     }
 }
 
@@ -95,7 +95,7 @@ impl SpriteImpl
     /// loads a [`SpriteSheetBinding`] from a [crate::SpriteLoader].
     ///
     /// panics if the path is not found
-    pub fn from_loader(ctx: &ContextHandleData, loader: SpriteLoader) -> Self
+    pub fn from_loader(ctx: &ContextHandleInner, loader: SpriteLoader) -> Self
     {
         let SpriteLoader { ref path, filtermode, pivot, instances, pxunit, rows, columns } = loader;
 
