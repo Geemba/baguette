@@ -184,6 +184,32 @@ impl<'a> App<'a>
     {
         self.renderer.screen_size::<T>()
     }
+
+    /// returns the screen width in the format you decide,
+    /// ex:
+    /// ```
+    /// let width = app.screen_width::<f32>()
+    ///
+    /// let width: f32 = self.screen_width();
+    /// ```
+    pub fn screen_width<T>(&self) -> T
+        where T: input::winit::dpi::Pixel
+    {
+        self.renderer.screen_size::<T>().0
+    }
+
+    /// returns the screen heigth in the format you decide,
+    /// ex:
+    /// ```
+    /// let heigth = app.screen_heigth::<f32>()
+    ///
+    /// let heigth: f32 = self.screen_heigth();
+    /// ```
+    pub fn screen_heigth<T>(&self) -> T
+        where T: input::winit::dpi::Pixel
+    {
+        self.renderer.screen_size::<T>().1
+    }
 }
 
 pub enum Fsm
