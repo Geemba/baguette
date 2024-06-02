@@ -22,7 +22,7 @@ impl State for AppWithTileMap
         Self
     }
 
-    fn update(&mut self, app: &mut App, event: &StateEvent)
+    fn update(&mut self, _: &mut App, _: &StateEvent)
     {
         
     }
