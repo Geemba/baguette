@@ -58,7 +58,7 @@ pub(crate) trait RenderPass
     fn draw<'a>
     (
         &'a mut self,
-        ctx: &ContextHandleData,
+        ctx: &ContextHandleInner,
         pass: &mut wgpu::RenderPass<'a>,
         camera: &'a camera::CameraData
     ) -> Result<(), wgpu::SurfaceError>;
