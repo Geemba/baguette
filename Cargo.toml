@@ -1,6 +1,6 @@
 [package]
 name = "baguette"
-version = "0.1.9"
+version = "0.2.0"
 edition = "2021"
 keywords = ["gamedev", "graphics"]
 
@@ -27,4 +27,4 @@ rendering = { package = "baguette-rendering", path = "crates/baguette-rendering"
 opt-level = 0
 
 [profile.dev.package."*"]
-opt-level = 1 
+opt-level = 2
