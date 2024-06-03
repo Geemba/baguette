@@ -161,11 +161,6 @@ impl DrawPass for SpritePass
 
         Ok(())
     }
-
-    fn add_pass(_: ContextHandle) -> Passes where Self: Sized
-    {
-        Passes::SpriteSheet(Self::new())
-    }
 }
 
 /// describes the type of sprite you want to create
