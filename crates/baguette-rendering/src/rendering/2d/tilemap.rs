@@ -602,7 +602,7 @@ type Matrix = [[f32; 4]; 4];
 
 #[repr(C)]
 #[derive(Default, Clone, Copy)]
-struct Tile
+pub struct Tile
 {
     /// the position inside the tilemap
     pub pos: Vec2,
