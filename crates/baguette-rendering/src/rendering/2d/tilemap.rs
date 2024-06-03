@@ -604,9 +604,14 @@ type Matrix = [[f32; 4]; 4];
 #[derive(Default, Clone, Copy)]
 struct Tile
 {
-    pos: Vec2,
-    idx: u32,
-    texture_idx: u32,
+    /// the position inside the tilemap
+    pub pos: Vec2,
+    /// the index of tile inside the tilemap texture
+    pub idx: u32,
+    /// the index of the tilemap texture,
+    /// 
+    /// the tilemap textures are indexed by the order you added them
+    pub texture_idx: u32,
 }
 
 unsafe impl bytemuck::NoUninit for Tile
