@@ -17,16 +17,6 @@ pub(crate) struct SpritePass
 
 impl SpritePass
 {
-    pub fn new() -> Self
-    {
-        Self
-        {
-            sprites: vec![],
-            instances: vec![],
-            bindings: None,
-        }
-    }
- 
     /// adds a new sprite to render, if another costructed [Sprite] has all the same parameters and texture
     /// you should add a new [SpriteInstance] inside of that struct using the instance parameter
     pub fn add_sprite(&mut self, ctx: crate::ContextHandle, loader: SpriteLoader) -> Sprite
