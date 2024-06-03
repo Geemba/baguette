@@ -11,7 +11,6 @@ bytemuck = { version = "*", features = [ "derive" ]}
 image = { version = "*", features = ["png", "jpeg"]}
 baguette-math = { workspace = true }
 input = { workspace = true }
-once_cell = "*"
 
 
 egui = { version = "*", features = ["bytemuck",] }
