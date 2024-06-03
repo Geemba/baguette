@@ -277,6 +277,12 @@ pub(crate) struct SpriteInstanceRaw
     pub bind_idx: u32,
 }
 
+/// the uvs of the spritepass are stored inside a storage array
+/// which requires 16 byte align.
+/// 
+/// *(the last two floats are just padding)*
+type Uv = [f32; 4];
+
 /// handles to the gpu
 pub(super) struct SpriteBinding
 {
@@ -284,10 +290,10 @@ pub(super) struct SpriteBinding
     pub render_pipeline: wgpu::RenderPipeline,
     pub bindgroup: wgpu::BindGroup,
 
-    pub index_buffer: wgpu::Buffer,
-    pub sprite_slices_storage_buffer: wgpu::Buffer,
-    pub uv_uniform: wgpu::Buffer,
-    pub instance_buffer: wgpu::Buffer,
+    pub index_buffer: TBuffer<u32>,
+    pub sprite_slices_storage_buffer: TBuffer<SpriteSlice>,
+    pub uv_uniform: TBuffer<Uv>,
+    pub instance_buffer: TBuffer<SpriteInstanceRaw>,
 }
 
 impl SpriteBinding
@@ -305,7 +311,6 @@ impl SpriteBinding
     ) -> SpriteBinding
     {
         use wgpu::*;
-        use wgpu::util::BufferInitDescriptor;
 
         assert!
         (
@@ -314,15 +319,15 @@ impl SpriteBinding
             both of them should have had equal length"
         );
 
-        let sprite_slices_storage_buffer = ctx.create_buffer(BufferDescriptor
-        {
-            label:  Some("sprites slices storage buffer"),
-            size: (std::mem::size_of::<SpriteSlice>() * 2) as u64,
-            usage:  BufferUsages::STORAGE | BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
+        let sprite_slices_storage_buffer = ctx.create_buffer
+        (
+            Some("sprites slices storage buffer"),
+            std::mem::size_of::<SpriteSlice>() * 2,
+            BufferUsages::STORAGE | BufferUsages::COPY_DST,
+            false,
+        );
 
-        ctx.write_buffer(&sprite_slices_storage_buffer, sprite_slices);
+        ctx.write_entire_buffer(&sprite_slices_storage_buffer, sprite_slices);
 
         let uvs: [[f32; 4]; 4] =
         [
@@ -332,12 +337,12 @@ impl SpriteBinding
             [1.,0., /*<- data, */ 0., 0. /* <- padding */],
         ];
 
-        let uv_uniform = ctx.create_buffer_init(BufferInitDescriptor
-        {
-            label: Some("sprite uv buffer"),
-            contents: bytemuck::cast_slice(&uvs),
-            usage: BufferUsages::UNIFORM
-        });
+        let uv_uniform = ctx.create_buffer_init
+        (
+            Some("sprite uv buffer"),
+            bytemuck::cast_slice(&uvs),
+            BufferUsages::UNIFORM
+        );
 
         let shader = ctx.create_shader_module(wgpu::ShaderModuleDescriptor 
         {
@@ -351,20 +356,22 @@ impl SpriteBinding
             (
                 ctx, textures, samplers, &sprite_slices_storage_buffer, sprite_slices, &uv_uniform
             ),
-            index_buffer: ctx.create_buffer_init(BufferInitDescriptor
-            {
-                label: Some("sprite index buffer"),
-                contents: bytemuck::cast_slice(&SPRITE_INDICES_U32),
-                usage: BufferUsages::VERTEX,
-            }),
+
+            index_buffer: ctx.create_buffer_init
+            (
+                Some("sprite index buffer"),
+                &SPRITE_INDICES_U32,
+                BufferUsages::VERTEX,
+            ),
+
             sprite_slices_storage_buffer,
-            instance_buffer: ctx.create_buffer(BufferDescriptor
-            {
-                label: Some("instance buffer"),
-                size: (std::mem::size_of::<SpriteInstanceRaw>() * instances_capacity) as u64,
-                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            }),
+            instance_buffer: ctx.create_buffer
+            (
+                Some("instance buffer"),
+                std::mem::size_of::<SpriteInstanceRaw>() * instances_capacity,
+                BufferUsages::VERTEX | BufferUsages::COPY_DST,
+                false,
+            ),
             uv_uniform,
             render_pipeline: Self::create_pipeline(ctx, &shader, textures.len()),
             shader,
@@ -381,7 +388,7 @@ impl SpriteBinding
         sprite_slices: &[SpriteSlice],
     )
     {
-        ctx.write_buffer(&self.sprite_slices_storage_buffer, sprite_slices);
+        ctx.write_entire_buffer(&self.sprite_slices_storage_buffer, sprite_slices);
 
         self.bindgroup = Self::create_bindgroup
         (
