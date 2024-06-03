@@ -6,7 +6,8 @@ use sprite::*;
 /// a starting value for how many sprite the instance buffer could hold
 const SPRITE_INSTANCES_INITIAL_CAPACITY: usize = 50;
 
-pub struct SpritePass
+#[derive(Default)]
+pub(crate) struct SpritePass
 {
     sprites: Vec<NonNull<SpriteImpl>>,
     instances: Vec<SpriteInstanceRaw>,
