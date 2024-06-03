@@ -1,4 +1,4 @@
-use app::{spritesheet::SheetSlices, *};
+use app::*;
 
 fn main()
 {
