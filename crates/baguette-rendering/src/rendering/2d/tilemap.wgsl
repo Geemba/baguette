@@ -12,8 +12,9 @@ struct CameraUniform
 
 struct Tile
 {
-	@location(1) pos: vec2<f32>,
-	@location(2) uv: vec2<f32>
+	@location(2) pos: vec2<f32>,
+	@location(3) idx: u32,
+	@location(4) bind_idx: u32,
 }
 
 struct TileMap
@@ -22,42 +23,43 @@ struct TileMap
     columns: u32
 }
 
+struct VertexInput
+{
+    @location(0) vert: vec2<f32>,
+    @location(1) uv: vec2<f32>,
+}
+
 @group(0) @binding(0) var<uniform> camera: CameraUniform;
+@group(1) @binding(0) var<uniform> matrix: mat4x4<f32>;
 
-@group(1) @binding(0) var diff_texs: binding_array<texture_2d<f32>>;
-@group(1) @binding(1) var diff_samplers: binding_array<sampler>;
-@group(1) @binding(2) var<uniform> matrix: mat4x4<f32>;
-@group(1) @binding(3) var layer_depth: texture_storage_2d<r32uint, read_write>;
+@group(2) @binding(0) var diff_texs: binding_array<texture_2d<f32>>;
+@group(2) @binding(1) var diff_sampler: sampler;
+@group(2) @binding(2) var layer_depth: texture_storage_2d<r32uint, read_write>;
 
-@vertex fn vertex(@location(0) vertex: vec2<f32>, tile: Tile) -> VertexOutput
+@vertex fn vertex(in: VertexInput, tile: Tile) -> VertexOutput
 {
     return VertexOutput
     (
         camera.view_proj * matrix *
-        vec4<f32>
-        (
-            vertex.x,
-            vertex.y,
-            0.,
-            1.
-        ),
-        tile.uv,
-        0u
+        vec4<f32>(in.vert.xy + tile.pos.xy, 0., 1.),
+        in.uv,
+        tile.bind_idx
     );
 }
 
 @fragment fn fragment(in: VertexOutput) -> @location(0) vec4<f32>
 {
+    //todo check that this is working
     //let tex_size: vec2<u32> = textureDimensions(layer_depth);
 
     //let screen_coords = vec2<u32>
     //(
-    //    u32((in.clip_position.x * 0.5 + 0.5) * tex_size.x),
-    //    u32((in.clip_position.y * 0.5 + 0.5) * tex_size.y)
+    //    u32((in.clip_position.x * 0.5 + 0.5)) * tex_size.x,
+    //    u32((in.clip_position.y * 0.5 + 0.5)) * tex_size.y
     //);
 
-    //let layer = textureLoad(layer_depth, screen_coords, 0);
-    //textureLoad(layer_depth, screen_coords, layer + 1u);
+    //let layer = textureLoad(layer_depth, screen_coords);
+    //textureStore(layer_depth, screen_coords, layer + 1u);
 
-    return textureSample(diff_texs[in.bind_index], diff_samplers[in.bind_index], in.tex_coords);
+    return textureSample(diff_texs[in.bind_index], diff_sampler, in.tex_coords);
 }
