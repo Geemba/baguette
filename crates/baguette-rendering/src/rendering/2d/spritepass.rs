@@ -1,4 +1,4 @@
-use std::{ffi::OsString, ptr::NonNull, sync::RwLockReadGuard};
+use std::{ffi::OsString, ptr::NonNull};
 
 use crate::*;
 use sprite::*;
