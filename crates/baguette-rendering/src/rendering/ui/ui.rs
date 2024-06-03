@@ -74,7 +74,7 @@ impl UiData
         &'a mut self, pass: &mut wgpu::RenderPass<'a>,
         window: &crate::Window,
         target: &egui_winit::winit::event_loop::ActiveEventLoop,
-        ctx: &std::sync::RwLockReadGuard<'_, crate::ContextHandleData>
+        ctx: &crate::ContextHandleInner
     )
     {
         let id = &self.state.ctx.viewport_id();
