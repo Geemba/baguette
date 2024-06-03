@@ -42,7 +42,7 @@ impl SpritePass
         }
     }
 
-    fn update_bindings(&mut self, ctx: &RwLockReadGuard<ContextHandleData>)
+    fn update_bindings(&mut self, ctx: &ContextHandleInner)
     {
         unsafe
         {
@@ -82,7 +82,7 @@ impl RenderPass for SpritePass
     fn draw<'a>
     (
         &'a mut self, 
-        ctx: &ContextHandleData,
+        ctx: &ContextHandleInner,
         pass: &mut wgpu::RenderPass<'a>,
         camera: &'a camera::CameraData
         
@@ -307,7 +307,7 @@ impl SpriteBinding
 {
     fn new
     (
-        ctx: &RwLockReadGuard<ContextHandleData>,
+        ctx: &ContextHandleInner,
 
         instances_capacity: usize,
 
@@ -387,7 +387,7 @@ impl SpriteBinding
     pub(crate) fn update
     (
         &mut self,
-        ctx: &RwLockReadGuard<ContextHandleData>,
+        ctx: &ContextHandleInner,
 
         textures: &[&wgpu::TextureView],
         samplers: &[&wgpu::Sampler],
@@ -411,7 +411,7 @@ impl SpriteBinding
 
     fn create_bindgroup
     (
-        ctx: &RwLockReadGuard<ContextHandleData>,
+        ctx: &ContextHandleInner,
         textures: &[&wgpu::TextureView],
         samplers: &[&wgpu::Sampler],
         sprite_slices_storage_buffer: &wgpu::Buffer,
@@ -475,7 +475,7 @@ impl SpriteBinding
 
     fn create_pipeline
     (
-        ctx: &RwLockReadGuard<ContextHandleData>,
+        ctx: &ContextHandleInner,
         shader: &wgpu::ShaderModule,
         count: usize
     )
@@ -560,7 +560,7 @@ impl SpriteBinding
     }
 }
 
-fn bindgroup_layout(ctx: &RwLockReadGuard<ContextHandleData>, count: usize) -> wgpu::BindGroupLayout
+fn bindgroup_layout(ctx: &ContextHandleInner, count: usize) -> wgpu::BindGroupLayout
 {
     use wgpu::*;
     use std::num::NonZeroU32;
