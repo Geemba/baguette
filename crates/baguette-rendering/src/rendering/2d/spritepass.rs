@@ -2,6 +2,7 @@ use std::{ffi::OsString, ptr::NonNull, sync::RwLockReadGuard};
 
 use crate::*;
 use sprite::*;
+use util::TBuffer;
 
 /// a starting value for how many sprite the instance buffer could hold
 const SPRITE_INSTANCES_INITIAL_CAPACITY: usize = 50;
