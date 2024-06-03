@@ -50,7 +50,7 @@ struct ScreenData
 
 impl UiData
 {
-    pub(crate) fn new(ctx: &crate::ContextHandleData, width: u32, height: u32, scale: f32) -> Self
+    pub(crate) fn new(ctx: &crate::ContextHandleInner, width: u32, height: u32, scale: f32) -> Self
     {
         Self
         {
