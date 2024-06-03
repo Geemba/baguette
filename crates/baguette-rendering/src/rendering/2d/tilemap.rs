@@ -106,13 +106,6 @@ impl TilemapPass
         TilemapBuilder { maps, tiles, filter, pxunit, .. }: TilemapBuilder<FullyConstructed>
     )
     {
-        assert!
-        (
-            !maps.is_empty(),
-            "no textures have been set to use in this tilemap, \n
-            call TilemapBuilder::set_textures."
-        );
-
         let ctx = &ctx.read().unwrap();
 
         let textures = maps.into_iter()
