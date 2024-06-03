@@ -514,7 +514,8 @@ impl SpriteBinding
                             6 => Uint32, // bind index
                         ]
                     }
-                ]
+                ],
+                compilation_options: Default::default(),
             },
             fragment: Some(FragmentState
             {
@@ -528,7 +529,8 @@ impl SpriteBinding
                         write_mask: ColorWrites::ALL,
                         blend: Some(BlendState::ALPHA_BLENDING)
                     })
-                ]
+                ],
+                compilation_options: Default::default(),
             }),
             primitive: PrimitiveState
             {
