@@ -69,15 +69,7 @@ impl SpritePass
     }
 }
 
-impl Default for SpritePass
-{
-    fn default() -> Self
-    {
-        Self::new()
-    }
-}
-
-impl RenderPass for SpritePass
+impl DrawPass for SpritePass
 {
     fn draw<'a>
     (
@@ -138,7 +130,7 @@ impl RenderPass for SpritePass
         }
         
         let bindings = self.bindings.as_ref().unwrap();
-        ctx.write_buffer(&bindings.instance_buffer, &self.instances);
+        ctx.write_entire_buffer(&bindings.instance_buffer, &self.instances);
 
         // drawing
         {
