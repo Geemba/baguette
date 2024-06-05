@@ -257,11 +257,13 @@ impl SpriteSlice
     }
 }
 
+type Matrix = [[f32; 4]; 4];
+
 #[repr(C)]
 #[derive(bytemuck::NoUninit, Clone, Copy)]
 pub(crate) struct SpriteInstanceRaw
 {
-    pub transform: crate::TransformRaw,
+    pub transform: Matrix,
     
     pub uv_idx: u32,
     pub bind_idx: u32,
