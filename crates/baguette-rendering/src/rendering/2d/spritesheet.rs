@@ -176,19 +176,7 @@ impl SpriteSheetBuilder
         }
     }
 
-    pub fn new_pixelated<'a>
-    (
-        path: impl Into<std::ffi::OsString>,
-        instances: impl IntoIterator<Item = (SpriteInstance, SheetSlices<'a>)>,
-        rows: u32,
-        columns: u32
-    )
-    -> Self
-    {
-        let mut this = Self::new(path, instances, rows, columns);
-        this.inner.filtermode = FilterMode::Nearest;  
-        this
-    }
+
 }
 
 #[derive(Clone)]
