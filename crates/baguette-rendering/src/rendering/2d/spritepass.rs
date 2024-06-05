@@ -19,14 +19,14 @@ impl SpritePass
 {
     /// adds a new sprite to render, if another costructed [Sprite] has all the same parameters and texture
     /// you should add a new [SpriteInstance] inside of that struct using the instance parameter
-    pub fn add_sprite(&mut self, ctx: crate::ContextHandle, loader: SpriteLoader) -> Sprite
+    pub fn add_sprite(&mut self, ctx: crate::ContextHandle, builder: SpriteBuilder) -> Sprite
     {
         //use wgpu::*;
         //use wgpu::util::BufferInitDescriptor;
 
         let ctx = ctx.read().expect("aw heel naw you panicked");
         
-        let mut sprite = Box::new(SpriteImpl::from_loader(&ctx, loader));
+        let mut sprite = Box::new(builder.build(&ctx));
 
         self.sprites.push
         (
@@ -164,7 +164,7 @@ impl DrawPass for SpritePass
 }
 
 /// describes the type of sprite you want to create
-pub struct SpriteLoader
+pub struct SpriteBuilder
 {
     /// directory of the source
     pub(crate) path: OsString,

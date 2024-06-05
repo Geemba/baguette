@@ -28,11 +28,11 @@ impl Renderer<'_>
 
     /// loads a sprite to be rendered,
     /// uses a builder type to describe how the sprite will be loaded
-    pub fn add_sprite(&mut self, loader: SpriteLoader) -> Sprite
+    pub fn add_sprite(&mut self, sprite: SpriteBuilder) -> Sprite
     {
         let ctx = self.0.ctx.clone();
         let pass = self.0.get_or_insert_pass::<SpritePass>();
-        pass.add_sprite(ctx, loader)
+        pass.add_sprite(ctx, sprite)
     }
 
     pub fn add_tilemap(&mut self, tilemap: TilemapBuilder<FullyConstructed>)

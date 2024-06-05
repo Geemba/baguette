@@ -18,7 +18,7 @@ pub use sprite::SpriteInstance;
 pub(crate) mod spritesheet;
 pub use spritesheet::SheetSlices;
 pub use spritesheet::SpriteSheet;
-pub use spritesheet::SpriteSheetLoader;
+pub use spritesheet::SpriteSheetBuilder;
 
 #[path = "rendering/2d/spritepass.rs"]
 pub(crate) mod spritepass;
@@ -44,18 +44,11 @@ pub use renderpasses::*;
 pub mod camera;
 pub use camera::*;
 
-#[path ="rendering/raw/transform.rs"]
-pub mod transform;
-#[path ="rendering/raw/vertex.rs"]
-pub mod vertex;
 #[path ="rendering/raw/texture.rs"]
 pub mod texture;
 
 #[path ="rendering/renderer/util.rs"]
 pub mod util;
-
-pub use transform::*;
-pub use vertex::*;
 pub use texture::*;
 
 

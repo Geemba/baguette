@@ -15,9 +15,9 @@ pub struct Sprite
 
 impl Sprite
 {
-    pub fn new (renderer: &mut crate::Renderer, loader: crate::SpriteLoader) -> Self
+    pub fn new (renderer: &mut crate::Renderer, builder: crate::SpriteBuilder) -> Self
     {
-        renderer.add_sprite(loader)
+        renderer.add_sprite(builder)
     }
 }
 
@@ -92,12 +92,12 @@ pub struct SpriteImpl
 /// impl containing sprite loading
 impl SpriteImpl
 {
-    /// loads a [`SpriteSheetBinding`] from a [crate::SpriteLoader].
+    /// loads a [`SpriteBinding`] from a [crate::SpriteBuilder].
     ///
     /// panics if the path is not found
     pub fn from_loader(ctx: &ContextHandleInner, loader: SpriteLoader) -> Self
     {
-        let SpriteLoader { ref path, filtermode, pivot, instances, pxunit, rows, columns } = loader;
+        let SpriteBuilder { ref path, filtermode, pivot, instances, pxunit, rows, columns } = loader;
 
         let image = image::io::Reader::open(path)
             .unwrap()
