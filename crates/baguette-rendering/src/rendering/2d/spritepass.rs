@@ -230,6 +230,120 @@ impl SpriteBuilder
         self.columns = u32::max(1, columns);
         self
     }
+
+        /// loads a [`SpriteBinding`] from a [crate::SpriteBuilder].
+    ///
+    /// panics if the path is not found
+    pub fn build(self, ctx: &ContextHandleInner) -> SpriteImpl
+    {
+        let SpriteBuilder { ref path, filtermode, pivot, instances, pxunit, rows, columns } = self;
+
+        let image = image::io::Reader::open(path)
+            .unwrap()
+            .decode()
+            .expect("failed to decode image, unsupported format");
+
+        // if we need to rescale we need to do it on the dyn image and not this variable
+        // otherwhise we just crop the rendered texture
+        let dimensions = Into::<UVec2>::into
+        (
+            image::GenericImageView::dimensions(&image)
+        );
+
+        let size = wgpu::Extent3d
+        {
+            width: dimensions.x,
+            height: dimensions.y,
+            depth_or_array_layers: 1
+        };
+
+        let texture = ctx.create_texture
+        (
+            wgpu::TextureDescriptor
+            {
+                size,
+                // the label is the directory of the sprite we loaded
+                label: Some(&path.to_string_lossy()),
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[]
+            }
+        );
+
+        ctx.write_texture
+        (
+            wgpu::ImageCopyTexture 
+            {
+                aspect: wgpu::TextureAspect::All,
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO
+            },
+            &image.to_rgba8(),
+            wgpu::ImageDataLayout
+            {
+                offset: 0,
+                bytes_per_row: Some(4 * dimensions.x),
+                rows_per_image: Some(dimensions.y)
+            },
+            size
+        );
+
+        let filter_mode = filtermode.unwrap_or
+        (
+            match size.width / rows < 64 && size.height / columns < 64
+            {
+                true => FilterMode::Nearest,
+                false => FilterMode::Linear
+            }
+        );
+
+        let view = texture.create_view(&Default::default());
+        let sampler = ctx.create_sampler
+        (
+            wgpu::SamplerDescriptor
+            {
+                address_mode_u: wgpu::AddressMode::ClampToEdge,
+                address_mode_v: wgpu::AddressMode::ClampToEdge,
+                address_mode_w: wgpu::AddressMode::ClampToEdge,
+                mag_filter: filter_mode,
+                min_filter: wgpu::FilterMode::Linear,
+                mipmap_filter: wgpu::FilterMode::Nearest,
+                ..Default::default()
+            }
+        );
+
+        // we adjust the dimensions of the vertex positions using the 
+        // pixel per unit factor
+        let scale = Vec2::new
+        (
+            (dimensions.x / columns) as f32 / pxunit,
+            (dimensions.y / rows) as f32 / pxunit
+        );
+
+        let vertices =
+        [
+            [-scale.x, scale.y],
+            [-scale.x, -scale.y],
+            [scale.x, -scale.y],
+            [scale.x, scale.y]
+        ];
+
+        let texture = crate::TextureData { texture, view, sampler };
+
+        let slice = SpriteSlice::new(vertices, rows, columns);
+
+        SpriteImpl
+        {
+            instances,
+            texture,
+            pivot,
+            slice,
+        }
+    }
 }
 
 #[repr(C)]
