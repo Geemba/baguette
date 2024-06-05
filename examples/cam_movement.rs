@@ -25,7 +25,7 @@ impl State for TestA
             sprite: SpriteSheet::new
             (
                 &mut app.renderer,
-                SpriteSheetLoader::new_pixelated(r"assets\green dude sheet.png", [], 6, 5)
+                SpriteSheetBuilder::new(r"assets\green dude sheet.png", [], 6, 5)
             )
         }
     }
