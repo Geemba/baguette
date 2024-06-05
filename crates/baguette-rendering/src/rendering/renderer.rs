@@ -447,12 +447,14 @@ impl FrameOutput
 {
     fn new(device: &wgpu::Device, width: u32, height: u32) -> Self 
     {
+        use wgpu::*;
+
         let module = &device.create_shader_module
         (
-            wgpu::ShaderModuleDescriptor
+            ShaderModuleDescriptor
             {
                 label: None,
-                source: wgpu::ShaderSource::Wgsl
+                source: ShaderSource::Wgsl
                 (
                     include_str!("shaders/tex_to_tex_copy.wgsl").into()
                 )
@@ -461,25 +463,25 @@ impl FrameOutput
 
         let bindgroup_layout = &device.create_bind_group_layout
         (
-            &wgpu::BindGroupLayoutDescriptor
+            &BindGroupLayoutDescriptor
             {
                 label: None,
-                entries: &[wgpu::BindGroupLayoutEntry
+                entries: &[BindGroupLayoutEntry
                 {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture 
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Texture 
                     {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
-                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: TextureSampleType::Float { filterable: false },
+                        view_dimension: TextureViewDimension::D2,
                         multisampled: false
                     },
                     count: None
-                },wgpu::BindGroupLayoutEntry
+                },BindGroupLayoutEntry
                 {
                     binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Sampler(SamplerBindingType::NonFiltering),
                     count: None
                 }]
             }
@@ -487,22 +489,22 @@ impl FrameOutput
 
         let view = device.create_texture
         (
-            &wgpu::TextureDescriptor
+            &TextureDescriptor
             {
                 label: Some("output texture"),
-                size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+                size: Extent3d { width, height, depth_or_array_layers: 1 },
                 mip_level_count: 1,
                 sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Bgra8UnormSrgb,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                dimension: TextureDimension::D2,
+                format: TextureFormat::Bgra8UnormSrgb,
+                usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
                 view_formats: &[],
             }
         ).create_view(&Default::default());
 
         let sampler = device.create_sampler
         (
-            &wgpu::SamplerDescriptor 
+            &SamplerDescriptor 
             {
                 label: Some("output sampler"),
                 ..Default::default()
@@ -511,18 +513,18 @@ impl FrameOutput
 
         let bindgroup = device.create_bind_group
         (
-            &wgpu::BindGroupDescriptor
+            &BindGroupDescriptor
             {
                 label: Some("frame output bindgroup"),
                 layout: bindgroup_layout,
-                entries: &[wgpu::BindGroupEntry
+                entries: &[BindGroupEntry
                 {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&view)
-                },wgpu::BindGroupEntry
+                    resource: BindingResource::TextureView(&view)
+                },BindGroupEntry
                 {
                     binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&sampler)
+                    resource: BindingResource::Sampler(&sampler)
                 }]
             }
         );
@@ -532,46 +534,54 @@ impl FrameOutput
             bindgroup,
             pipeline: device.create_render_pipeline
             (
-                &wgpu::RenderPipelineDescriptor
+                &RenderPipelineDescriptor
                 {
                     label: Some("output render pipeline"),
                     layout: Some(&device.create_pipeline_layout
                     (
-                        &wgpu::PipelineLayoutDescriptor
+                        &PipelineLayoutDescriptor
                         {
                             label: Some("output pipeline descriptor"),
                             bind_group_layouts: &[bindgroup_layout],
                             push_constant_ranges: &[]
                         }
                     )),
-                    vertex: wgpu::VertexState
+                    vertex: VertexState
                     {
-                        module, entry_point: "vertex", buffers: &[vertex_layout_desc()],
+                        module, entry_point: "vertex", buffers:
+                        &[
+                            VertexBufferLayout
+                            {
+                                array_stride: std::mem::size_of::<[f32;5]>() as _,
+                                step_mode: wgpu::VertexStepMode::Vertex,
+                                attributes: &vertex_attr_array![0 => Float32x3, 1 => Float32x2],
+                            }
+                        ],
                         compilation_options: Default::default(),
                     },
-                    primitive: wgpu::PrimitiveState
+                    primitive: PrimitiveState
                     {
-                        topology: wgpu::PrimitiveTopology::TriangleList,
+                        topology: PrimitiveTopology::TriangleList,
                         strip_index_format: None,
-                        front_face: wgpu::FrontFace::Cw,
+                        front_face: FrontFace::Cw,
                         cull_mode: None,
                         unclipped_depth: false,
-                        polygon_mode: wgpu::PolygonMode::Fill,
+                        polygon_mode: PolygonMode::Fill,
                         conservative: false
                     },
                     depth_stencil: None,
-                    multisample: wgpu::MultisampleState::default(),
+                    multisample: MultisampleState::default(),
                     fragment: Some
                     (
-                        wgpu::FragmentState 
+                        FragmentState 
                         {
                             module,
                             entry_point: "fragment",
-                            targets: &[Some(wgpu::ColorTargetState
+                            targets: &[Some(ColorTargetState
                             {
-                                format: wgpu::TextureFormat::Bgra8UnormSrgb,
-                                blend: Some(wgpu::BlendState::REPLACE),
-                                write_mask: wgpu::ColorWrites::ALL
+                                format: TextureFormat::Bgra8UnormSrgb,
+                                blend: Some(BlendState::REPLACE),
+                                write_mask: ColorWrites::ALL
                             })],
                             compilation_options: Default::default(),
                         }
@@ -585,8 +595,19 @@ impl FrameOutput
                 &wgpu::util::BufferInitDescriptor
                 {
                     label: None,
-                    contents: bytemuck::cast_slice(&vertices_from_size(1., 1.)),
-                    usage: wgpu::BufferUsages::VERTEX
+                    contents: bytemuck::cast_slice::<[f32;5], u8>
+                    (
+                        &[
+                           [-1., 1., 0., 0., 0.],
+                           [-1., -1., 0., 0., 1.],
+                           [1., -1., 0., 1., 1.],
+
+                           [1., -1., 0., 1., 1.],
+                           [-1., 1., 0., 0., 0.],
+                           [1., 1., 0., 1., 0.],
+                        ]
+                    ),
+                    usage: BufferUsages::VERTEX
                 }
             ),
             view,
