@@ -30,7 +30,7 @@ impl DerefMut for SpriteSheet
 
 impl SpriteSheet
 {
-    pub fn new(renderer: &mut crate::Renderer, loader: SpriteSheetLoader) -> Self
+    pub fn new(renderer: &mut crate::Renderer, loader: SpriteSheetBuilder) -> Self
     {
         Self
         {
@@ -128,13 +128,13 @@ impl<'a> Iterator for IterMut<'a>
 }
 
 /// describes the type of sprite you want to create
-pub struct SpriteSheetLoader
+pub struct SpriteSheetBuilder
 {
-    inner: SpriteLoader,
+    inner: SpriteBuilder,
     sections: Vec<SliceSection>,
 }
 
-impl SpriteSheetLoader
+impl SpriteSheetBuilder
 {
     pub fn new<'a>
     (
@@ -152,7 +152,7 @@ impl SpriteSheetLoader
             instances.push((Default::default(), SheetSlices::All));
         }
 
-        let inner = SpriteLoader::new(path)
+        let inner = SpriteBuilder::new(path)
             .instances(instances.iter().map(|(instance, ..)| instance.clone()))
             .slice_atlas(rows, columns);       
 
