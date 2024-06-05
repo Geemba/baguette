@@ -23,7 +23,7 @@ impl State for TestA
             sprite: SpriteSheet::new
             (
                 &mut app.renderer,
-                SpriteSheetLoader::new_pixelated
+                SpriteSheetBuilder::new
                 (
                     "assets/green dude sheet.png",
                     [(Default::default(), SheetSlices::Range(19..22))],

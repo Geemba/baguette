@@ -23,13 +23,13 @@ impl State for Application
             sprite: Sprite::new
             (
                 &mut app.renderer,
-                SpriteLoader::new_pixelated(r"assets\baguette.png")
+                SpriteBuilder::new(r"assets\baguette.png")
                     .pivot((0., -0.1))
             ),
             sprite2: Sprite::new
             (
                 &mut app.renderer,
-                SpriteLoader::new_pixelated(r"assets\green dude.png")
+                SpriteBuilder::new(r"assets\green dude.png")
                     .pivot((0., -0.1))
             ),
             go_up: true,
