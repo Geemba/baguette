@@ -21,9 +21,6 @@ impl SpritePass
     /// you should add a new [SpriteInstance] inside of that struct using the instance parameter
     pub fn add_sprite(&mut self, ctx: crate::ContextHandle, builder: SpriteBuilder) -> Sprite
     {
-        //use wgpu::*;
-        //use wgpu::util::BufferInitDescriptor;
-
         let ctx = ctx.read().expect("aw heel naw you panicked");
         
         let mut sprite = Box::new(builder.build(&ctx));
@@ -112,13 +109,6 @@ impl DrawPass for SpritePass
                     let other_y_pos = other.transform[3][1]; // [3] is the translation, [1] is the y position
 
                     //
-
-                    //println!
-                    //(
-                    //    "instance sorting point {}, other sorting point: {}",
-                    //    instance_y_pos + instance_pivot,
-                    //    other_y_pos + other_pivot
-                    //);
 
                     f32::total_cmp
                     (
