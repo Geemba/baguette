@@ -1,4 +1,4 @@
-use std::{ffi::OsString, ptr::NonNull};
+use std::{path::PathBuf, ptr::NonNull};
 
 use crate::*;
 use sprite::*;
@@ -167,7 +167,7 @@ impl DrawPass for SpritePass
 pub struct SpriteBuilder
 {
     /// directory of the source
-    pub(crate) path: OsString,
+    pub(crate) path: PathBuf,
     /// describes how the sprite will be filtered,
     /// 
     /// [wgpu::FilterMode::Nearest] results in a pixelated effect
@@ -187,7 +187,7 @@ pub struct SpriteBuilder
 
 impl SpriteLoader
 {
-    pub fn new(path: impl Into<std::ffi::OsString>) -> Self
+    pub fn new(path: impl Into<std::path::PathBuf>) -> Self
     {
         Self
         {
@@ -201,7 +201,7 @@ impl SpriteLoader
         }
     }
 
-    pub fn new_pixelated(path: impl Into<std::ffi::OsString>) -> Self
+    pub fn filter_mode(mut self, filter_mode: FilterMode) -> Self
     {
         let mut loader = Self::new(path);
         loader.filtermode = FilterMode::Nearest;
