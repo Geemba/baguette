@@ -60,7 +60,7 @@ impl From<TilemapPass> for Pass
     }
 }
 
-/// a trait implemented by draw commands 
+/// a trait to implement draw commands 
 pub(crate) trait DrawPass: Into<Pass> + Default
 {    
     #[allow(clippy::cast_possible_truncation)]
