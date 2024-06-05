@@ -317,8 +317,8 @@ impl TilemapBinding
 
         Self
         {
-            tex_bindgroup: Self::get_tilemap_textures_bindgroup(ctx, &views, &sampler, &layers_texture),
-            matrix_bindgroup: Self::get_matrix_bindgroup(ctx, &matrix_buffer), 
+            tex_bindgroup: Self::create_tilemap_textures_bindgroup(ctx, &views, &sampler, &layers_texture),
+            matrix_bindgroup: Self::create_matrix_bindgroup(ctx, &matrix_buffer), 
             views,
             sampler,
 
@@ -341,7 +341,7 @@ impl TilemapBinding
     )
     {
         // objects to update: pipeline and tex bindgroup,
-        self.tex_bindgroup = Self::get_tilemap_textures_bindgroup
+        self.tex_bindgroup = Self::create_tilemap_textures_bindgroup
         (
             ctx, &self.views, &self.sampler, &self.layers_texture
         );
@@ -431,7 +431,7 @@ impl TilemapBinding
         })
     }
 
-    fn get_tilemap_textures_bindgroup
+    fn create_tilemap_textures_bindgroup
     (
         ctx: &ContextHandleInner,
         views: &[TextureView],
@@ -538,7 +538,7 @@ impl TilemapBinding
         })
     }
 
-    fn get_matrix_bindgroup
+    fn create_matrix_bindgroup
     (
         ctx: &ContextHandleInner,
         matrix_buffer: &Buffer,
