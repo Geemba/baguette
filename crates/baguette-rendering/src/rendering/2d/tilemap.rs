@@ -24,8 +24,12 @@ pub struct TilemapBuilder<T = PartiallyConstructed>
     /// how many images will be loaded
     /// to use with this tilemap
     maps: Vec<TextureLoadDescriptor>,
-    tiles: Vec<Vec<Tile>>,
-    filter: wgpu::FilterMode,
+    position: Vec3,
+    rotation: Quat,
+    scale: Vec3,
+
+    layers: IndexMap<u8, Vec<Tile>>,
+    filter: FilterMode,
     pxunit: f32,
     phantom: std::marker::PhantomData<T>
 }
