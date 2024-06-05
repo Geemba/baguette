@@ -175,7 +175,7 @@ pub struct SpriteBuilder
     pub(crate) columns: u32, 
 }
 
-impl SpriteLoader
+impl SpriteBuilder
 {
     pub fn new(path: impl Into<std::path::PathBuf>) -> Self
     {
