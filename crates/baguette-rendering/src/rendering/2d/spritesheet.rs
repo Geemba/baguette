@@ -138,7 +138,7 @@ impl SpriteSheetBuilder
 {
     pub fn new<'a>
     (
-        path: impl Into<std::ffi::OsString>,
+        path: impl Into<std::path::PathBuf>,
         instances: impl IntoIterator<Item = (SpriteInstance, SheetSlices<'a>)>,
         rows: u32,
         columns: u32
