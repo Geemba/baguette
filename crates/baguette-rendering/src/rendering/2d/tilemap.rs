@@ -1,7 +1,8 @@
+use indexmap::{*, map::Entry};
 use wgpu::*;
 use crate::{*, util::TBuffer};
 
-/// describes how to load a texture, how many rows and columns it has 
+/// describes how to load a texture, how many rows and columns it has
 struct TextureLoadDescriptor
 {
     pub path: std::path::PathBuf,
@@ -44,9 +45,14 @@ impl TilemapBuilder
         TilemapBuilder
         {
             maps: vec![],
-            tiles: vec![],
-            pxunit: 100.,
+
+            position: Vec3::ZERO,
+            rotation: Quat::IDENTITY,
+            scale: Vec3::ONE,
+
+            layers: indexmap![],
             filter: FilterMode::Nearest,
+            pxunit: 100.,
             phantom: std::marker::PhantomData,
         }
     }    
@@ -54,8 +60,9 @@ impl TilemapBuilder
 
 impl<T> TilemapBuilder<T>
 { 
-    pub fn set_layer(mut self, layer_index: u8, tiles: impl IntoIterator<Item = Tile>) -> Self
+    pub fn add_layer<const LAYER: u8>(mut self, tiles: impl IntoIterator<Item = Tile>) -> Self
     {
+        self.layers.insert(LAYER, tiles.into_iter().collect());
 
         self
     }
@@ -70,19 +77,31 @@ impl<T> TilemapBuilder<T>
             columns,
         });
 
+        self.into_fully_constructed()
+    }
+
+    fn into_fully_constructed(self) -> TilemapBuilder<FullyConstructed>
+    {
         let Self
         {
             maps,
-            tiles,
+            position,
+            rotation,
+            scale,
+            layers,
             filter,
             pxunit,
             ..
+            
         } = self;
 
         TilemapBuilder::<FullyConstructed>
         {
             maps,
-            tiles,
+            position,
+            rotation,
+            scale,
+            layers,
             filter,
             pxunit,
             phantom: std::marker::PhantomData,
@@ -98,7 +117,8 @@ impl Default for TilemapBuilder<PartiallyConstructed>
 #[derive(Default)]
 pub(crate) struct TilemapPass
 {
-    tiles: Vec<Vec<Tile>>,
+    layers: IndexMap<u8, Vec<Tile>>,
+    tranform: Mat4,
     binding: Option<TilemapBinding>
 }
 
@@ -107,23 +127,45 @@ impl TilemapPass
     pub fn add
     (
         &mut self, ctx: crate::ContextHandle,
-        TilemapBuilder { maps, tiles, filter, pxunit, .. }: TilemapBuilder<FullyConstructed>
+        TilemapBuilder { maps, layers, filter, pxunit, .. }:
+        TilemapBuilder<FullyConstructed>
     )
     {
         let ctx = &ctx.read().unwrap();
 
-        let textures = maps.into_iter()
-            .map(|TextureLoadDescriptor { path, .. }| self::create_texture_from_path(ctx, path))
-            .collect::<Vec<_>>();
+        let textures = maps
+            .into_iter()
+            .map(|tex_desc| self::create_texture_from_path(ctx, tex_desc.path))
+            .collect::<Vec<Texture>>();
 
-        if self.tiles.is_empty()
+        for (layer_idx, mut tiles) in layers.into_iter()
         {
-            self.tiles.push(vec![Tile::default()])
-        };
+            match self.layers.entry(layer_idx)
+            {
+                Entry::Vacant(empty_layer) =>
+                {
+                    empty_layer.insert(tiles);
+                }
+                Entry::Occupied(mut layer) => layer.get_mut().append(&mut tiles)
+            }
+        }
         
-        let instances = self.tiles.iter().flatten().copied().collect::<Vec<_>>();
+        if self.layers.is_empty()
+        {
+            self.layers.insert(0, vec![Tile::default()]);
+        }
+        
+        let instances = self.layers.values().flatten().copied().collect::<Vec<_>>();
 
-        self.binding = Some(TilemapBinding::new(ctx, &textures, filter, &instances, pxunit))
+        if let Some(ref mut binding) = self.binding
+        {
+            binding.update_texture_bindgroup(ctx);
+            binding.update_instances(ctx, &instances)
+        }
+        else
+        {
+            self.binding = Some(TilemapBinding::new(ctx, &textures, filter, &self.tranform, &instances, pxunit))
+        };
     }
 }
 
@@ -151,7 +193,7 @@ impl crate::DrawPass for TilemapPass
 
         pass.set_index_buffer(binding.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
-        pass.draw_indexed(0..SPRITE_INDICES_U16.len() as _, 0, 0..self.tiles.len() as _);
+        pass.draw_indexed(0..SPRITE_INDICES_U16.len() as _, 0, 0..binding.num_instances);
         
         Ok(())
     }
@@ -171,7 +213,9 @@ struct TilemapBinding
     index_buffer: TBuffer<u16>,
     instance_buffer: TBuffer<Tile>,
     matrix_buffer: TBuffer<Matrix>,
-    layers_texture: TextureView
+    layers_texture: TextureView,
+
+    num_instances: u32
 }
 
 impl TilemapBinding
@@ -182,6 +226,7 @@ impl TilemapBinding
         textures: &[Texture],
         filter_mode: FilterMode,
 
+        transform: &Mat4,
         instances: &[Tile],
         pxunit: f32
     ) -> Self
@@ -224,7 +269,7 @@ impl TilemapBinding
 
         let pipeline = Self::get_pipeline(ctx, &shader, textures.len());
 
-        let matrix = Mat4::IDENTITY.to_cols_array_2d();
+        let matrix = transform.to_cols_array_2d();
 
         let matrix_buffer = ctx.create_buffer_init
         (
@@ -284,10 +329,12 @@ impl TilemapBinding
             instance_buffer,
             matrix_buffer,
             layers_texture,
+            num_instances: instances.len() as _
         }
     }
 
-    fn update_bindings
+    /// updates the texture bindgroup
+    fn update_texture_bindgroup
     (
         &mut self,
         ctx: &ContextHandleInner,
@@ -304,6 +351,7 @@ impl TilemapBinding
 
     fn update_instances(&mut self, ctx: &ContextHandleInner, instances: &[Tile])
     {
+        self.num_instances = instances.len() as u32;
         ctx.write_entire_buffer
         (
             &self.instance_buffer, instances
@@ -599,6 +647,7 @@ type Matrix = [[f32; 4]; 4];
 
 #[repr(C)]
 #[derive(Default, Clone, Copy)]
+#[derive(Debug)]
 pub struct Tile
 {
     /// the position inside the tilemap
@@ -611,10 +660,7 @@ pub struct Tile
     pub texture_idx: u32,
 }
 
-unsafe impl bytemuck::NoUninit for Tile
-{
-    
-}
+unsafe impl bytemuck::NoUninit for Tile{}
 
 //impl From<Tile> for RawTile
 //{
