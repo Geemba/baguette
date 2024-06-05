@@ -162,7 +162,7 @@ pub struct SpriteBuilder
     /// 
     /// [wgpu::FilterMode::Nearest] results in a pixelated effect
     /// while [wgpu::FilterMode::Linear] makes textures smooth but blurry
-    pub(crate) filtermode: wgpu::FilterMode,
+    pub(crate) filtermode: Option<wgpu::FilterMode>,
     /// the pivot of the sprite, defaults to 0,0 (the center of the sprite) if [None].
     /// is used both as pivot of rotation and as sorting point with other sprites
     pub(crate) pivot: Option<Vec2>,
@@ -182,7 +182,7 @@ impl SpriteLoader
         Self
         {
             path: path.into(),
-            filtermode: FilterMode::Linear,
+            filtermode: None,
             pivot: None,
             instances: vec![Default::default()],
             pxunit: 100.,
@@ -193,9 +193,8 @@ impl SpriteLoader
 
     pub fn filter_mode(mut self, filter_mode: FilterMode) -> Self
     {
-        let mut loader = Self::new(path);
-        loader.filtermode = FilterMode::Nearest;
-        loader
+        self.filtermode = Some(filter_mode);
+        self
     }
 
     pub fn pivot(mut self, pivot: impl Into<Vec2>) -> Self
