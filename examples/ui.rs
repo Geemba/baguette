@@ -25,7 +25,7 @@ impl State for TestA
             cam: Camera::get(&mut app.renderer),
             sprite: app.renderer.add_sprite
             (
-                SpriteLoader::new_pixelated(r"assets\green dude.png")
+                SpriteBuilder::new(r"assets\green dude.png")
             ),
         }
     }
