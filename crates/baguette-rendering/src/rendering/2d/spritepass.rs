@@ -225,7 +225,7 @@ impl SpriteLoader
     }
 
     /// if this is an atlas, pass many rows and columns it has
-    pub fn slice_atlas(mut self, rows: u32, columns: u32) -> Self
+    pub fn tiled_atlas(mut self, rows: u32, columns: u32) -> Self
     {
         self.rows = u32::max(1, rows);
         self.columns = u32::max(1, columns);
