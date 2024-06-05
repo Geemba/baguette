@@ -11,7 +11,7 @@ bytemuck = { version = "*", features = [ "derive" ]}
 image = { version = "*", features = ["png", "jpeg"]}
 baguette-math = { workspace = true }
 input = { workspace = true }
-
+indexmap = "*"
 
 egui = { version = "*", features = ["bytemuck",] }
 type-map = "*"
