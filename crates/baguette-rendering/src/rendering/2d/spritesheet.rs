@@ -154,9 +154,9 @@ impl SpriteSheetBuilder
 
         let inner = SpriteBuilder::new(path)
             .instances(instances.iter().map(|(instance, ..)| instance.clone()))
-            .slice_atlas(rows, columns);       
+            .tiled_atlas(rows, columns);       
 
-        let SpriteLoader { rows, columns, .. } = inner;
+        let SpriteBuilder { rows, columns, .. } = inner;
 
         let sections = instances.iter().map(|(..,tiles)|
         {
