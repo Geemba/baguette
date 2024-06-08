@@ -4,6 +4,8 @@ use crate::*;
 use sprite::*;
 use util::TBuffer;
 
+use std::{ path::PathBuf, ptr::NonNull };
+
 /// a starting value for how many sprite the instance buffer could hold
 const SPRITE_INSTANCES_INITIAL_CAPACITY: usize = 50;
 
