@@ -70,7 +70,7 @@ pub struct RendererData
 {
     ctx: ContextHandle,
 
-    /// the window that this renderer draws on
+    /// the window that the renderer draws on
     pub window: Option<Arc<Window>>,
     pub ui: ui::UiData,
 
@@ -117,7 +117,7 @@ impl RendererData
     ///
     /// # Errors
     ///
-    /// this function will return an error if the surface is not able to be retrieved.
+    /// this function will return an error if the surface is unable to be retrieved.
     pub fn render
     (
         &mut self,
@@ -128,7 +128,6 @@ impl RendererData
             .read()
             .expect("ctx failed to retrieve while rendering");
 
-        //CameraData::update_all();
         self.camera.data.borrow_mut().update(&ctx);
 
         let camera = &self.camera.data.borrow();
