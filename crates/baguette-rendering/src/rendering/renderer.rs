@@ -113,45 +113,6 @@ impl RendererData
         self.update_surface()
     }
 
-    /// returns a mutable reference to the pass of type `T` of this [`Renderer`], or creates it if [None],
-    /// 
-    /// then returns a mutable reference to the contained value.
-    fn get_or_insert_pass<T: DrawPass + 'static>(&mut self) -> &mut T
-    {
-        use std::any::Any;
-
-        let passes = self.passes.get_or_insert_with(RenderPasses::default);
-
-        // this is a bunch of boilerplate for type conversion 
-        let pass = match (0..passes.len()).find
-        (
-            |&i| match &mut passes[i]
-            {
-                Pass::Sprite(p) => p as &mut dyn Any,
-                Pass::Tilemap(p) => p as &mut dyn Any,
-            }
-            .is::<T>()
-        )
-        {
-            Some(i) => &mut passes[i],
-            None =>
-            {
-                passes.push(<T>::into(<T>::default()));
-                let len = passes.len();
-                &mut passes[len -1]
-            }
-        };
-        
-        match pass
-        {
-            Pass::Sprite(p) => p as &mut dyn Any,
-            Pass::Tilemap(p) => p as &mut dyn Any
-        }
-        .downcast_mut()
-        .unwrap()
-        
-    }
-
     /// returns the render of this [`Renderer`].
     ///
     /// # Errors
