@@ -1,5 +1,4 @@
 use std::ptr::NonNull;
-
 use crate::*;
 
 type Owner = NonNull<Vec<NonNull<SpriteImpl>>>;
@@ -48,34 +47,11 @@ impl Drop for Sprite
         unsafe 
         {
             self.sprites.as_mut()
-                .retain
-                (
-                    |sprite| (&mut *self.sprite) as *mut SpriteImpl == sprite.as_ptr()
-                )
-                //.expect
-                //(
-                //    "attempted to remove a sprite,
-                //    but the id dind't correspond to anything"
-                //);
-        }          
-    }
-}
-
-impl std::ops::Index<usize> for Sprite
-{
-    type Output = SpriteInstance;
-
-    fn index(&self, index: usize) -> &Self::Output
-    {
-        &self.instances[index]
-    }
-}
-
-impl std::ops::IndexMut<usize> for Sprite
-{
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output
-    {
-        &mut self.sprite.instances[index]
+            .retain
+            (
+                |sprite| (&mut *self.sprite) as *mut SpriteImpl == sprite.as_ptr()
+            )
+        }
     }
 }
 
@@ -87,11 +63,6 @@ pub struct SpriteImpl
 
     /// the texture that the sprite will use
     pub(crate) texture: TextureData,
-}
-
-/// impl containing sprite loading
-impl SpriteImpl
-{
 }
 
 impl SpriteImpl
