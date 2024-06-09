@@ -181,21 +181,17 @@ impl TilemapPass
             self.binding = Some(TilemapBinding::new(ctx, &textures, filter, &self.tranform, &instances, pxunit))
         };
     }
-}
 
-impl crate::DrawPass for TilemapPass
-{
-    fn draw<'a>
+    pub(crate) fn draw<'a>
     (
-        &'a mut self,
+        &'a self,
         _: &ContextHandleInner,
         pass: &mut wgpu::RenderPass<'a>,
-        camera: &'a CameraData
-
-    ) -> Result<(), SurfaceError>
+        camera: &'a CameraData,
+        layer: u8
+    )
     {
         let binding = self.binding.as_ref().unwrap();
-
         pass.set_pipeline(&binding.pipeline);
 
         pass.set_bind_group(0, &camera.bindings.bindgroup, &[]);
