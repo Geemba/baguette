@@ -1,5 +1,3 @@
-use std::{path::PathBuf, ptr::NonNull};
-
 use crate::*;
 use sprite::*;
 use util::TBuffer;
@@ -13,7 +11,7 @@ const SPRITE_INSTANCES_INITIAL_CAPACITY: usize = 50;
 pub(crate) struct SpritePass
 {
     sprites: Vec<NonNull<SpriteImpl>>,
-    instances: Vec<SpriteInstanceRaw>,
+    layers: FastIndexMap<u8,Vec<SpriteInstanceRaw>>,
     bindings: Option<SpriteBinding>
 }
 
@@ -28,7 +26,7 @@ impl SpritePass
             (&mut *sprite).into()
         );
 
-        self.update_bindings(&ctx);
+        self.update_bindings(ctx);
 
         Sprite
         {

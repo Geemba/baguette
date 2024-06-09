@@ -57,7 +57,7 @@ impl Drop for Sprite
 
 pub struct SpriteImpl
 {
-    pub(crate) instances: Vec<SpriteInstance>,
+    pub(crate) layers: FastIndexMap<u8, Vec<SpriteInstance>>,
     pub(crate) slice: SpriteSlice,
     pub(crate) pivot: Option<Vec2>,
 
@@ -68,17 +68,29 @@ pub struct SpriteImpl
 impl SpriteImpl
 {
     /// iters the instances mutably
-    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, SpriteInstance>
+    pub fn iter_all_mut(&mut self) -> indexmap::map::IterMut<u8, Vec<SpriteInstance>>
     {
-        self.instances.iter_mut()
+        self.layers.iter_mut()
     }
 
     /// iters the instances immutably
-    pub fn iter(&self) -> std::slice::Iter<'_, SpriteInstance>
+    pub fn iter_all(&self) -> indexmap::map::Iter<u8, Vec<SpriteInstance>>
     {
-        self.instances.iter()
+        self.layers.iter()
+    }
+
+    /// iters the layer's instances mutably
+    pub fn iter_layer_mut(&mut self, layer: u8) -> std::slice::IterMut<SpriteInstance>
+    {
+        self.layers[&layer].iter_mut()
     }
     
+    /// iters the layer's instances immutably
+    pub fn iter_layer(&self, layer: u8) -> std::slice::Iter<SpriteInstance>
+    {
+        self.layers[&layer].iter()
+    }
+
     /// returns the size of the texture
     pub fn size(&self) -> baguette_math::Vec2
     {
