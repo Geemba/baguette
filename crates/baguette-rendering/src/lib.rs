@@ -3,6 +3,9 @@
 pub use input::winit::window::Window;
 
 pub(crate) use baguette_math::*;
+pub(crate) use sprite::{SPRITE_INDICES_U16, SPRITE_INDICES_U32};
+pub(crate) use wgpu::naga::FastHashMap;
+pub(crate) use wgpu::naga::FastIndexMap;
 
 /// image crate reexport
 pub use image;
@@ -14,9 +17,18 @@ pub use sprite::SpriteLayout;
 pub use sprite::SpriteInstance;
 
 #[path ="rendering/2d/spritesheet.rs"]
-pub mod spritesheet;
+pub(crate) mod spritesheet;
+pub use spritesheet::SheetSlices;
 pub use spritesheet::SpriteSheet;
-pub use spritesheet::SpriteSheetLoader;
+pub use spritesheet::SpriteSheetBuilder;
+
+#[path = "rendering/2d/spritepass.rs"]
+pub(crate) mod spritepass;
+pub use spritepass::*;
+
+#[path = "rendering/2d/tilemap.rs"]
+pub(crate) mod tilemap;
+pub use tilemap::*;
 
 #[path ="rendering/renderer.rs"]
 pub mod renderer;
@@ -30,26 +42,15 @@ pub mod ui;
 mod renderpasses;
 pub use renderpasses::*;
 
-#[path = "rendering/2d/spritepass.rs"]
-pub mod spritepass;
-pub use spritepass::*;
-
 #[path ="rendering/camera.rs"]
 pub mod camera;
 pub use camera::*;
 
-#[path ="rendering/raw/transform.rs"]
-pub mod transform;
-#[path ="rendering/raw/vertex.rs"]
-pub mod vertex;
 #[path ="rendering/raw/texture.rs"]
 pub mod texture;
 
 #[path ="rendering/renderer/util.rs"]
 pub mod util;
-
-pub use transform::*;
-pub use vertex::*;
 pub use texture::*;
 
 

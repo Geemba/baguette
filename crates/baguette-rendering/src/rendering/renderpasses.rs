@@ -1,62 +1,96 @@
 pub use crate::*;
 
-pub enum Passes
+
+#[derive(Default)]
+pub(crate) struct RenderPassCommands
 {
-    /// pass tasked with rendering sprites
-    SpriteSheet(SpritePass),
+    sprite_pass: Option<SpritePass>,
+    tilemap_pass: Option<TilemapPass>,
+    layers: FastIndexMap<u8, (bool, bool)>
 }
 
-impl Passes
+impl RenderPassCommands
 {
-    pub(crate) fn draw<'a>
-    (
-        &'a mut self,
-        ctx: &std::sync::RwLockReadGuard<ContextHandleData>,
-        pass: &mut wgpu::RenderPass<'a>,
-        camera: &'a camera::CameraData
-    )
-    -> Result<(), wgpu::SurfaceError>
+    pub fn add_sprite(&mut self, ctx: &ContextHandleInner, sprite: SpriteBuilder) -> Sprite
     {
-        match self
+        let sprite_pass = self
+            .sprite_pass
+            .get_or_insert_with(Default::default);
+
+        let sprite = sprite_pass.add_sprite(ctx, sprite);
+
+        for (&layer, ..) in sprite.sprite.layers.iter()
         {
-            Self::SpriteSheet(pass) => pass as &mut dyn RenderPass,
-        }.draw(ctx, pass, camera)
-    }
-}
+            match self.layers.get_mut(&layer)
+            {
+                Some((sprite, ..)) => *sprite = true,
+                None =>
+                {
+                    self.layers.insert(layer, (true, false));
+                }
+            } 
+        }
 
-pub(crate) struct RenderPasses
-{
-    pub renderpasses: Vec<Passes>
-}
-
-impl RenderPasses
-{
-    pub const fn new() -> Self { Self { renderpasses: vec![]} }
-    
-    /// immutable iteration
-    pub fn iter(&self) -> std::slice::Iter<Passes>
-    {
-        self.renderpasses.iter()
+        sprite
     }
 
-    ///// mutable iteration
-    pub fn iter_mut(&mut self) -> std::slice::IterMut<Passes>
+    pub fn add_tilemap(&mut self, ctx: &ContextHandleInner, tilemap: TilemapBuilder<FullyConstructed>)
     {
-        self.renderpasses.iter_mut()
-    }    
-}
+        let tilemap_pass = self
+            .tilemap_pass
+            .get_or_insert_with(Default::default);
 
-pub(crate) trait RenderPass
-{
-    /// describes how to initialize this pass
-    fn add_pass(ctx: ContextHandle) -> Passes where Self: Sized;
-    
-    #[allow(clippy::cast_possible_truncation)]
-    fn draw<'a>
+        #[allow(clippy::let_unit_value)]
+        let tilemap = tilemap_pass.add(ctx, tilemap);
+
+        for (&layer, ..) in tilemap_pass.layers.iter()
+        {
+            match self.layers.get_mut(&layer)
+            {
+                Some((.., tilemap)) => *tilemap = true,
+                None =>
+                {
+                    self.layers.insert(layer, (false, true));
+                }
+            } 
+        }
+
+        tilemap
+    }
+
+    pub fn draw<'a>
     (
-        &'a mut self,
-        ctx: &std::sync::RwLockReadGuard<ContextHandleData>,
+        &'a self, ctx: &ContextHandleInner,
         pass: &mut wgpu::RenderPass<'a>,
-        camera: &'a camera::CameraData
-    ) -> Result<(), wgpu::SurfaceError>;
+        camera: &'a CameraData
+    )
+    {
+        // draw the tilemap behind and draw the sprites on top for each layer
+        for (&layer, &(sprite_layer, tilemap_layer)) in self.layers.iter()
+        {
+            if let Some(sprite_pass) = &self.sprite_pass
+            {
+                if sprite_layer
+                {
+                    sprite_pass.draw(ctx, pass, camera, layer);
+                }
+            }
+
+            if let Some(tilemap_pass) = &self.tilemap_pass
+            {
+                if tilemap_layer
+                {
+                    tilemap_pass.draw(ctx, pass, camera, layer);
+                }
+            }
+        };
+    }
+    
+    pub(crate) fn prepare(&mut self, _ctx: &ContextHandleInner)
+    {
+        if let Some(sprite_pass) = &mut self.sprite_pass
+        {
+            sprite_pass.prepare_instances();
+        }     
+    }
 }

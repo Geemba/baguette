@@ -1,4 +1,4 @@
-use app::{spritesheet::SheetSlices, *};
+use app::*;
 
 fn main()
 {
@@ -23,11 +23,14 @@ impl State for TestA
             sprite: SpriteSheet::new
             (
                 &mut app.renderer,
-                SpriteSheetLoader::new_pixelated
+                SpriteSheetBuilder::new
                 (
                     "assets/green dude sheet.png",
-                    [(Default::default(), SheetSlices::Range(19..22))],
                     6, 5
+                )
+                .set_layer::<0>
+                (
+                    [(Default::default(), SheetSlices::Range(19..22))]
                 )
             ),
         }
@@ -39,7 +42,7 @@ impl State for TestA
         {
             true =>
             {
-                for (.., section) in self.sprite.iter_mut()
+                for (.., section) in self.sprite.iter_layer_mut(0)
                 {
                     section.next_or_first();
                 }

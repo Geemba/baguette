@@ -23,9 +23,9 @@ impl State for TestA
         Self
         {
             cam: Camera::get(&mut app.renderer),
-            sprite: app.renderer.load_sprite
+            sprite: app.renderer.add_sprite
             (
-                SpriteLoader::new_pixelated(r"assets\green dude.png")
+                SpriteBuilder::new(r"assets\green dude.png")
             ),
         }
     }

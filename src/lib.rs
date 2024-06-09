@@ -25,7 +25,7 @@ pub struct AppBuilder<T>
     fsm: T
 }
 
-/// same function as [new] but more fresh
+/// same function as [new] but with a freshy vibe, kinda
 pub fn fresh() -> AppBuilder<UninitDynFsm>
 {
     self::new()
@@ -123,6 +123,13 @@ impl<T> AppBuilder<T>
     pub fn set_resizable(mut self, value: bool) -> Self
     {
         self.w_attributes = self.w_attributes.with_resizable(value);
+        self
+    }
+
+    /// set the screen size in pixels
+    pub fn set_screen_size(mut self, width: u32, heigth: u32) -> Self
+    {
+        self.w_attributes = self.w_attributes.with_inner_size(dpi::PhysicalSize::new(width, heigth));
         self
     }
 

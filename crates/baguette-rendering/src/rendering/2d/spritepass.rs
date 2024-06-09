@@ -1,47 +1,32 @@
-use std::{ffi::OsString, ptr::NonNull, sync::RwLockReadGuard};
-
 use crate::*;
 use sprite::*;
+use util::TBuffer;
+
+use std::{ path::PathBuf, ptr::NonNull };
 
 /// a starting value for how many sprite the instance buffer could hold
 const SPRITE_INSTANCES_INITIAL_CAPACITY: usize = 50;
 
-pub struct SpritePass
+#[derive(Default)]
+pub(crate) struct SpritePass
 {
     sprites: Vec<NonNull<SpriteImpl>>,
-    instances: Vec<SpriteInstanceRaw>,
+    layers: FastIndexMap<u8,Vec<SpriteInstanceRaw>>,
     bindings: Option<SpriteBinding>
 }
 
 impl SpritePass
 {
-    pub fn new() -> Self
-    {
-        Self
-        {
-            sprites: vec![],
-            instances: vec![],
-            bindings: None,
-        }
-    }
- 
-    /// adds a new sprite to render, if another costructed [Sprite] has all the same parameters and texture
-    /// you should add a new [SpriteInstance] inside of that struct using the instance parameter
-    pub fn add_sprite(&mut self, ctx: crate::ContextHandle, loader: SpriteLoader) -> Sprite
-    {
-        //use wgpu::*;
-        //use wgpu::util::BufferInitDescriptor;
-
-        let ctx = ctx.read().expect("aw heel naw you panicked");
-        
-        let mut sprite = Box::new(SpriteImpl::from_loader(&ctx, loader));
+    pub fn add_sprite(&mut self, ctx: &ContextHandleInner, builder: SpriteBuilder) -> Sprite
+    {   
+        let mut sprite = Box::new(builder.build(ctx));
 
         self.sprites.push
         (
             (&mut *sprite).into()
         );
 
-        self.update_bindings(&ctx);
+        self.update_bindings(ctx);
 
         Sprite
         {
@@ -50,7 +35,7 @@ impl SpritePass
         }
     }
 
-    fn update_bindings(&mut self, ctx: &RwLockReadGuard<ContextHandleData>)
+    fn update_bindings(&mut self, ctx: &ContextHandleInner)
     {
         unsafe
         {
@@ -75,129 +60,102 @@ impl SpritePass
             }
         }
     }
-}
 
-impl Default for SpritePass
-{
-    fn default() -> Self
+    pub(crate) fn prepare_instances(&mut self)
     {
-        Self::new()
-    }
-}
-
-impl RenderPass for SpritePass
-{
-    fn draw<'a>
-    (
-        &'a mut self, 
-        ctx: &RwLockReadGuard<ContextHandleData>,
-        pass: &mut wgpu::RenderPass<'a>,
-        camera: &'a camera::CameraData
+        self.layers.clear();
         
-    )
-    -> Result<(), wgpu::SurfaceError>
-    {
-        // instance sorting
+        for i in 0..self.sprites.len()
         {
-            self.instances.clear();
-        
-            for (i, sprite) in self.sprites.iter().enumerate()
-            {
-                let sprite = unsafe { sprite.as_ref() };
-
-                for instance in &sprite.instances
-                {
-                    self.instances.push(instance.as_raw(&sprite.slice, sprite.pivot, i as u32))
-                }
-            }
+            let sprite = unsafe { self.sprites[i].as_mut() };
             
-            self.instances.sort_unstable_by
+            for (layer, new_instances) in sprite.layers.iter_mut()
+            {
+                let mut new_instances = new_instances.iter().map
+                (
+                    |instance| instance.as_raw(&sprite.slice, sprite.pivot, i as u32)
+                ).collect();
+
+                match self.layers.get_mut(layer)
+                {
+                    Some(instances) => instances.append(&mut new_instances),
+                    None =>
+                    {
+                        self.layers.insert_sorted(*layer, new_instances);
+                    }
+                }
+            }     
+        }
+        
+        for instances in self.layers.values_mut()
+        {
+            instances.sort_unstable_by
             (
                 |instance, other| unsafe
                 {
                     // instance
-
+            
                     let instance_pivot = self.sprites[instance.bind_idx as usize].as_ref().pivot.unwrap_or_default().y;
                         
                     let instance_y_pos = instance.transform[3][1]; // [3] is the translation, [1] is the y position
-
+            
                     // other
-
+            
                     let other_pivot = self.sprites[other.bind_idx as usize].as_ref().pivot.unwrap_or_default().y;
-
+            
                     let other_y_pos = other.transform[3][1]; // [3] is the translation, [1] is the y position
-
+            
                     //
-
-                    //println!
-                    //(
-                    //    "instance sorting point {}, other sorting point: {}",
-                    //    instance_y_pos + instance_pivot,
-                    //    other_y_pos + other_pivot
-                    //);
-
+            
                     f32::total_cmp
                     (
                         &(instance_y_pos + instance_pivot), 
                         &(other_y_pos + other_pivot) 
                     ).reverse()
                 }
-            );
+            )   
         }
-        
-        let bindings = self.bindings.as_ref().unwrap();
-        ctx.write_buffer(&bindings.instance_buffer, &self.instances);
-
-        // drawing
-        {
-            pass.set_pipeline(&bindings.render_pipeline);
-
-            pass.set_bind_group(0, &camera.bindings.bindgroup, &[]);
-            pass.set_bind_group(1, &bindings.bindgroup, &[]);
-            
-            pass.set_vertex_buffer(0, bindings.index_buffer.slice(..));
-            pass.set_vertex_buffer(1, bindings.instance_buffer.slice(..));
-
-            pass.draw(0..SPRITE_INDICES_U32.len() as u32, 0..self.instances.len() as u32)
-        }
-
-        //for binding in self.sprites.values()
-        //{
-        //    let binding = unsafe { binding.as_ref() };
-
-        //    pass.set_bind_group(0, &binding.binding.bindgroup, &[]);
-        //    pass.set_bind_group(1, &camera.binding.bindgroup, &[]);
-    
-        //    pass.set_vertex_buffer(0, binding.binding.vertex_buffer.slice(..));
-        //    pass.set_vertex_buffer(1, binding.binding.instance_buffer.0.slice(..));
-
-        //    pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-        //    pass.draw_indexed(0..SPRITE_INDICES.len() as u32, 0, 0..binding.binding.instance_buffer.1);
-        //}
-
-        Ok(())
     }
 
-    fn add_pass(_: ContextHandle) -> Passes where Self: Sized
+    pub(crate) fn draw<'a>
+    (
+        &'a self,
+        ctx: &ContextHandleInner,
+        pass: &mut wgpu::RenderPass<'a>,
+        camera: &'a camera::CameraData,
+        layer: u8
+    )
     {
-        Passes::SpriteSheet(Self::new())
+        let instances = &self.layers[&layer];
+        let bindings = self.bindings.as_ref().unwrap();
+        ctx.write_entire_buffer(&bindings.instance_buffer, instances);
+
+        pass.set_pipeline(&bindings.render_pipeline);
+
+        pass.set_bind_group(0, &camera.bindings.bindgroup, &[]);
+        pass.set_bind_group(1, &bindings.bindgroup, &[]);
+        
+        pass.set_vertex_buffer(0, bindings.index_buffer.slice(..));
+        pass.set_vertex_buffer(1, bindings.instance_buffer.slice(..));
+
+        pass.draw(0..SPRITE_INDICES_U32.len() as u32, 0..instances.len() as u32)  
     }
 }
 
 /// describes the type of sprite you want to create
-pub struct SpriteLoader
+pub struct SpriteBuilder
 {
     /// directory of the source
-    pub(crate) path: OsString,
+    pub(crate) path: PathBuf,
     /// describes how the sprite will be filtered,
     /// 
     /// [wgpu::FilterMode::Nearest] results in a pixelated effect
     /// while [wgpu::FilterMode::Linear] makes textures smooth but blurry
-    pub(crate) filtermode: wgpu::FilterMode,
+    pub(crate) filtermode: Option<wgpu::FilterMode>,
     /// the pivot of the sprite, defaults to 0,0 (the center of the sprite) if [None].
     /// is used both as pivot of rotation and as sorting point with other sprites
     pub(crate) pivot: Option<Vec2>,
-    pub(crate) instances: Vec<SpriteInstance>,
+    pub(crate) instances: FastIndexMap<u8,Vec<SpriteInstance>>,
     /// describes how many pixels of this sprite
     /// represent one unit in the scene
     pub(crate) pxunit: f32,
@@ -206,27 +164,30 @@ pub struct SpriteLoader
     pub(crate) columns: u32, 
 }
 
-impl SpriteLoader
+impl SpriteBuilder
 {
-    pub fn new(path: impl Into<std::ffi::OsString>) -> Self
+    pub fn new(path: impl Into<std::path::PathBuf>) -> Self
     {
+
+        let mut instances = FastIndexMap::default();
+        instances.insert(0, vec![Default::default()]);
+
         Self
         {
             path: path.into(),
-            filtermode: FilterMode::Linear,
+            filtermode: None,
             pivot: None,
-            instances: vec![Default::default()],
+            instances,
             pxunit: 100.,
             rows: 1,
             columns: 1,
         }
     }
 
-    pub fn new_pixelated(path: impl Into<std::ffi::OsString>) -> Self
+    pub fn filter_mode(mut self, filter_mode: FilterMode) -> Self
     {
-        let mut loader = Self::new(path);
-        loader.filtermode = FilterMode::Nearest;
-        loader
+        self.filtermode = Some(filter_mode);
+        self
     }
 
     pub fn pivot(mut self, pivot: impl Into<Vec2>) -> Self
@@ -241,7 +202,8 @@ impl SpriteLoader
         self
     }
 
-    pub fn instances(mut self, instances: impl IntoIterator<Item = SpriteInstance>) -> Self
+    /// Inserts the instances of this layer
+    pub fn set_layer<const LAYER: u8>(mut self, instances: impl IntoIterator<Item = SpriteInstance>) -> Self
     {
         let instances = instances
             .into_iter()
@@ -249,18 +211,132 @@ impl SpriteLoader
 
         if !instances.is_empty()
         {
-            self.instances = instances;
+            self.instances.insert(LAYER, instances);
         }
         
         self
     }
 
     /// if this is an atlas, pass many rows and columns it has
-    pub fn slice_atlas(mut self, rows: u32, columns: u32) -> Self
+    pub fn tiled_atlas(mut self, rows: u32, columns: u32) -> Self
     {
         self.rows = u32::max(1, rows);
         self.columns = u32::max(1, columns);
         self
+    }
+
+        /// loads a [`SpriteBinding`] from a [crate::SpriteBuilder].
+    ///
+    /// panics if the path is not found
+    pub fn build(self, ctx: &ContextHandleInner) -> SpriteImpl
+    {
+        let SpriteBuilder { ref path, filtermode, pivot, instances, pxunit, rows, columns } = self;
+
+        let image = image::io::Reader::open(path)
+            .unwrap()
+            .decode()
+            .expect("failed to decode image, unsupported format");
+
+        // if we need to rescale we need to do it on the dyn image and not this variable
+        // otherwhise we just crop the rendered texture
+        let dimensions = Into::<UVec2>::into
+        (
+            image::GenericImageView::dimensions(&image)
+        );
+
+        let size = wgpu::Extent3d
+        {
+            width: dimensions.x,
+            height: dimensions.y,
+            depth_or_array_layers: 1
+        };
+
+        let texture = ctx.create_texture
+        (
+            wgpu::TextureDescriptor
+            {
+                size,
+                // the label is the directory of the sprite we loaded
+                label: Some(&path.to_string_lossy()),
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[]
+            }
+        );
+
+        ctx.write_texture
+        (
+            wgpu::ImageCopyTexture 
+            {
+                aspect: wgpu::TextureAspect::All,
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO
+            },
+            &image.to_rgba8(),
+            wgpu::ImageDataLayout
+            {
+                offset: 0,
+                bytes_per_row: Some(4 * dimensions.x),
+                rows_per_image: Some(dimensions.y)
+            },
+            size
+        );
+
+        let filter_mode = filtermode.unwrap_or
+        (
+            match size.width / rows < 64 && size.height / columns < 64
+            {
+                true => FilterMode::Nearest,
+                false => FilterMode::Linear
+            }
+        );
+
+        let view = texture.create_view(&Default::default());
+        let sampler = ctx.create_sampler
+        (
+            wgpu::SamplerDescriptor
+            {
+                address_mode_u: wgpu::AddressMode::ClampToEdge,
+                address_mode_v: wgpu::AddressMode::ClampToEdge,
+                address_mode_w: wgpu::AddressMode::ClampToEdge,
+                mag_filter: filter_mode,
+                min_filter: wgpu::FilterMode::Linear,
+                mipmap_filter: wgpu::FilterMode::Nearest,
+                ..Default::default()
+            }
+        );
+
+        // we adjust the dimensions of the vertex positions using the 
+        // pixel per unit factor
+        let scale = Vec2::new
+        (
+            (dimensions.x / columns) as f32 / pxunit,
+            (dimensions.y / rows) as f32 / pxunit
+        );
+
+        let vertices =
+        [
+            [-scale.x, scale.y],
+            [-scale.x, -scale.y],
+            [scale.x, -scale.y],
+            [scale.x, scale.y]
+        ];
+
+        let texture = crate::TextureData { texture, view, sampler };
+
+        let slice = SpriteSlice::new(vertices, rows, columns);
+
+        SpriteImpl
+        {
+            layers: instances,
+            texture,
+            pivot,
+            slice,
+        }
     }
 }
 
@@ -288,15 +364,23 @@ impl SpriteSlice
     }
 }
 
+type Matrix = [[f32; 4]; 4];
+
 #[repr(C)]
 #[derive(bytemuck::NoUninit, Clone, Copy)]
 pub(crate) struct SpriteInstanceRaw
 {
-    pub transform: crate::TransformRaw,
+    pub transform: Matrix,
     
     pub uv_idx: u32,
     pub bind_idx: u32,
 }
+
+/// the uvs of the spritepass are stored inside a storage array
+/// which requires 16 byte align.
+/// 
+/// *(the last two floats are just padding)*
+type Uv = [f32; 4];
 
 /// handles to the gpu
 pub(super) struct SpriteBinding
@@ -305,17 +389,17 @@ pub(super) struct SpriteBinding
     pub render_pipeline: wgpu::RenderPipeline,
     pub bindgroup: wgpu::BindGroup,
 
-    pub index_buffer: wgpu::Buffer,
-    pub sprite_slices_storage_buffer: wgpu::Buffer,
-    pub uv_uniform: wgpu::Buffer,
-    pub instance_buffer: wgpu::Buffer,
+    pub index_buffer: TBuffer<u32>,
+    pub sprite_slices_storage_buffer: TBuffer<SpriteSlice>,
+    pub uv_uniform: TBuffer<Uv>,
+    pub instance_buffer: TBuffer<SpriteInstanceRaw>,
 }
 
 impl SpriteBinding
 {
     fn new
     (
-        ctx: &RwLockReadGuard<ContextHandleData>,
+        ctx: &ContextHandleInner,
 
         instances_capacity: usize,
 
@@ -326,7 +410,6 @@ impl SpriteBinding
     ) -> SpriteBinding
     {
         use wgpu::*;
-        use wgpu::util::BufferInitDescriptor;
 
         assert!
         (
@@ -335,15 +418,15 @@ impl SpriteBinding
             both of them should have had equal length"
         );
 
-        let sprite_slices_storage_buffer = ctx.create_buffer(BufferDescriptor
-        {
-            label:  Some("sprites slices storage buffer"),
-            size: (std::mem::size_of::<SpriteSlice>() * 2) as u64,
-            usage:  BufferUsages::STORAGE | BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
+        let sprite_slices_storage_buffer = ctx.create_buffer
+        (
+            Some("sprites slices storage buffer"),
+            std::mem::size_of::<SpriteSlice>() * 2,
+            BufferUsages::STORAGE | BufferUsages::COPY_DST,
+            false,
+        );
 
-        ctx.write_buffer(&sprite_slices_storage_buffer, sprite_slices);
+        ctx.write_entire_buffer(&sprite_slices_storage_buffer, sprite_slices);
 
         let uvs: [[f32; 4]; 4] =
         [
@@ -353,12 +436,12 @@ impl SpriteBinding
             [1.,0., /*<- data, */ 0., 0. /* <- padding */],
         ];
 
-        let uv_uniform = ctx.create_buffer_init(BufferInitDescriptor
-        {
-            label: Some("sprite uv buffer"),
-            contents: bytemuck::cast_slice(&uvs),
-            usage: BufferUsages::UNIFORM
-        });
+        let uv_uniform = ctx.create_buffer_init
+        (
+            Some("sprite uv buffer"),
+            bytemuck::cast_slice(&uvs),
+            BufferUsages::UNIFORM
+        );
 
         let shader = ctx.create_shader_module(wgpu::ShaderModuleDescriptor 
         {
@@ -372,20 +455,22 @@ impl SpriteBinding
             (
                 ctx, textures, samplers, &sprite_slices_storage_buffer, sprite_slices, &uv_uniform
             ),
-            index_buffer: ctx.create_buffer_init(BufferInitDescriptor
-            {
-                label: Some("sprite index buffer"),
-                contents: bytemuck::cast_slice(&SPRITE_INDICES_U32),
-                usage: BufferUsages::VERTEX,
-            }),
+
+            index_buffer: ctx.create_buffer_init
+            (
+                Some("sprite index buffer"),
+                &SPRITE_INDICES_U32,
+                BufferUsages::VERTEX,
+            ),
+
             sprite_slices_storage_buffer,
-            instance_buffer: ctx.create_buffer(BufferDescriptor
-            {
-                label: Some("instance buffer"),
-                size: (std::mem::size_of::<SpriteInstanceRaw>() * instances_capacity) as u64,
-                usage: BufferUsages::VERTEX | BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            }),
+            instance_buffer: ctx.create_buffer
+            (
+                Some("instance buffer"),
+                std::mem::size_of::<SpriteInstanceRaw>() * instances_capacity,
+                BufferUsages::VERTEX | BufferUsages::COPY_DST,
+                false,
+            ),
             uv_uniform,
             render_pipeline: Self::create_pipeline(ctx, &shader, textures.len()),
             shader,
@@ -395,14 +480,14 @@ impl SpriteBinding
     pub(crate) fn update
     (
         &mut self,
-        ctx: &RwLockReadGuard<ContextHandleData>,
+        ctx: &ContextHandleInner,
 
         textures: &[&wgpu::TextureView],
         samplers: &[&wgpu::Sampler],
         sprite_slices: &[SpriteSlice],
     )
     {
-        ctx.write_buffer(&self.sprite_slices_storage_buffer, sprite_slices);
+        ctx.write_entire_buffer(&self.sprite_slices_storage_buffer, sprite_slices);
 
         self.bindgroup = Self::create_bindgroup
         (
@@ -419,7 +504,7 @@ impl SpriteBinding
 
     fn create_bindgroup
     (
-        ctx: &RwLockReadGuard<ContextHandleData>,
+        ctx: &ContextHandleInner,
         textures: &[&wgpu::TextureView],
         samplers: &[&wgpu::Sampler],
         sprite_slices_storage_buffer: &wgpu::Buffer,
@@ -483,7 +568,7 @@ impl SpriteBinding
 
     fn create_pipeline
     (
-        ctx: &RwLockReadGuard<ContextHandleData>,
+        ctx: &ContextHandleInner,
         shader: &wgpu::ShaderModule,
         count: usize
     )
@@ -535,7 +620,8 @@ impl SpriteBinding
                             6 => Uint32, // bind index
                         ]
                     }
-                ]
+                ],
+                compilation_options: Default::default(),
             },
             fragment: Some(FragmentState
             {
@@ -549,7 +635,8 @@ impl SpriteBinding
                         write_mask: ColorWrites::ALL,
                         blend: Some(BlendState::ALPHA_BLENDING)
                     })
-                ]
+                ],
+                compilation_options: Default::default(),
             }),
             primitive: PrimitiveState
             {
@@ -568,7 +655,7 @@ impl SpriteBinding
     }
 }
 
-fn bindgroup_layout(ctx: &RwLockReadGuard<ContextHandleData>, count: usize) -> wgpu::BindGroupLayout
+fn bindgroup_layout(ctx: &ContextHandleInner, count: usize) -> wgpu::BindGroupLayout
 {
     use wgpu::*;
     use std::num::NonZeroU32;

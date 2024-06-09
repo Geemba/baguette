@@ -1,5 +1,4 @@
-use std::{ptr::NonNull, sync::RwLockReadGuard};
-
+use std::ptr::NonNull;
 use crate::*;
 
 type Owner = NonNull<Vec<NonNull<SpriteImpl>>>;
@@ -15,9 +14,9 @@ pub struct Sprite
 
 impl Sprite
 {
-    pub fn new (renderer: &mut crate::Renderer, loader: crate::SpriteLoader) -> Self
+    pub fn new (renderer: &mut crate::Renderer, builder: crate::SpriteBuilder) -> Self
     {
-        renderer.load_sprite(loader)
+        renderer.add_sprite(builder)
     }
 }
 
@@ -48,42 +47,17 @@ impl Drop for Sprite
         unsafe 
         {
             self.sprites.as_mut()
-                .retain
-                (
-                    |sprite| (&mut *self.sprite) as *mut SpriteImpl == sprite.as_ptr()
-                )
-                //.expect
-                //(
-                //    "attempted to remove a sprite,
-                //    but the id dind't correspond to anything"
-                //);
-        }          
-    }
-}
-
-impl std::ops::Index<usize> for Sprite
-{
-    type Output = SpriteInstance;
-
-    fn index(&self, index: usize) -> &Self::Output
-    {
-        &self.instances[index]
-    }
-}
-
-// index mut very likely sucks performance whise
-// since it both iterates and recreates the instance buffer for just one item mutation
-impl std::ops::IndexMut<usize> for Sprite
-{
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output
-    {
-        self.iter_mut().nth(index).unwrap()
+            .retain
+            (
+                |sprite| (&mut *self.sprite) as *mut SpriteImpl == sprite.as_ptr()
+            )
+        }
     }
 }
 
 pub struct SpriteImpl
 {
-    pub(crate) instances: Vec<SpriteInstance>,
+    pub(crate) layers: FastIndexMap<u8, Vec<SpriteInstance>>,
     pub(crate) slice: SpriteSlice,
     pub(crate) pivot: Option<Vec2>,
 
@@ -91,129 +65,32 @@ pub struct SpriteImpl
     pub(crate) texture: TextureData,
 }
 
-/// impl containing sprite loading
-impl SpriteImpl
-{
-    /// loads a [`SpriteSheetBinding`] from a [crate::SpriteLoader].
-    ///
-    /// panics if the path is not found
-    pub fn from_loader(ctx: &RwLockReadGuard<ContextHandleData>, loader: SpriteLoader) -> Self
-    {
-        let SpriteLoader { ref path, filtermode, pivot, instances, pxunit, rows, columns } = loader;
-
-        let image = image::io::Reader::open(path)
-            .unwrap()
-            .decode()
-            .expect("failed to decode image, unsupported format");
-
-        // if we need to rescale we need to do it on the dyn image and not this variable
-        // otherwhise we just crop the rendered texture
-        let dimensions = Into::<baguette_math::UVec2>::into
-        (
-            image::GenericImageView::dimensions(&image)
-        );
-
-        let size = wgpu::Extent3d
-        {
-            width: dimensions.x,
-            height: dimensions.y,
-            depth_or_array_layers: 1
-        };
-
-        let texture = ctx.create_texture
-        (
-            wgpu::TextureDescriptor
-            {
-                size,
-                // the label is the directory of the sprite we loaded
-                label: Some(&path.to_string_lossy()),
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-                view_formats: &[]
-            }
-        );
-
-        ctx.write_texture
-        (
-            wgpu::ImageCopyTexture 
-            {
-                aspect: wgpu::TextureAspect::All,
-                texture: &texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO
-            },
-            &image.to_rgba8(),
-            wgpu::ImageDataLayout
-            {
-                offset: 0,
-                bytes_per_row: Some(4 * dimensions.x),
-                rows_per_image: Some(dimensions.y)
-            },
-            size
-        );
-
-        let view = texture.create_view(&Default::default());
-        let sampler = ctx.create_sampler
-        (
-            wgpu::SamplerDescriptor
-            {
-                address_mode_u: wgpu::AddressMode::ClampToEdge,
-                address_mode_v: wgpu::AddressMode::ClampToEdge,
-                address_mode_w: wgpu::AddressMode::ClampToEdge,
-                mag_filter: filtermode,
-                min_filter: wgpu::FilterMode::Linear,
-                mipmap_filter: wgpu::FilterMode::Nearest,
-                ..Default::default()
-            }
-        );
-
-        // we adjust the dimensions of the vertex positions using the 
-        // pixel per unit factor
-        let scale = Vec2::new
-        (
-            (dimensions.x / columns) as f32 / pxunit,
-            (dimensions.y / rows) as f32 / pxunit
-        );
-
-        let vertices =
-        [
-            [-scale.x, scale.y],
-            [-scale.x, -scale.y],
-            [scale.x, -scale.y],
-            [scale.x, scale.y]
-        ];
-
-        let texture = crate::TextureData { texture, view, sampler, pxunit };
-
-        let slice = SpriteSlice::new(vertices, rows, columns);
-
-        Self
-        {
-            instances,
-            texture,
-            pivot,
-            slice,
-        }
-    }
-}
-
 impl SpriteImpl
 {
     /// iters the instances mutably
-    pub fn iter_mut(&mut self) -> std::slice::IterMut<'_, SpriteInstance>
+    pub fn iter_all_mut(&mut self) -> indexmap::map::IterMut<u8, Vec<SpriteInstance>>
     {
-        self.instances.iter_mut()
+        self.layers.iter_mut()
     }
 
     /// iters the instances immutably
-    pub fn iter(&self) -> std::slice::Iter<'_, SpriteInstance>
+    pub fn iter_all(&self) -> indexmap::map::Iter<u8, Vec<SpriteInstance>>
     {
-        self.instances.iter()
+        self.layers.iter()
+    }
+
+    /// iters the layer's instances mutably
+    pub fn iter_layer_mut(&mut self, layer: u8) -> std::slice::IterMut<SpriteInstance>
+    {
+        self.layers[&layer].iter_mut()
     }
     
+    /// iters the layer's instances immutably
+    pub fn iter_layer(&self, layer: u8) -> std::slice::Iter<SpriteInstance>
+    {
+        self.layers[&layer].iter()
+    }
+
     /// returns the size of the texture
     pub fn size(&self) -> baguette_math::Vec2
     {
@@ -326,6 +203,11 @@ impl Default for SpriteLayout
 }
 
 pub(crate) const SPRITE_INDICES_U32: [u32; 6] =
+[
+    0, 1, 2, 2, 3, 0
+];
+
+pub(crate) const SPRITE_INDICES_U16: [u16; 6] =
 [
     0, 1, 2, 2, 3, 0
 ];

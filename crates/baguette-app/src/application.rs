@@ -40,7 +40,6 @@ impl ApplicationHandler for AppHandler
 {
     fn resumed(&mut self, event_loop: &ActiveEventLoop)
     {
-        //event_loop.create_window(self.window_attributes.clone());
         self.data.renderer.resume(event_loop);
         self.fsm.resume(&mut self.data.to_user_mut())
     }
@@ -125,11 +124,11 @@ impl AppData
         self.renderer.window.as_ref().unwrap()
     }
 
-    #[inline]
-    pub fn window_mut(&mut self) -> &mut rendering::Window
-    {
-        self.renderer.window.as_mut().unwrap()
-    }
+    //#[inline]
+    //pub fn window_mut(&mut self) -> &mut rendering::Window
+    //{
+    //    self.renderer.window.as_mut().unwrap()
+    //}
 
     pub fn check_input(&mut self, event: &input::WindowEvent)
     {
@@ -179,10 +178,36 @@ impl<'a> App<'a>
     /// ```
     /// app.screen_size::<f32>()
     /// ```
-    pub fn screen_size<T>(&self) -> input::winit::dpi::PhysicalSize<T>
+    pub fn screen_size<T>(&self) -> (T,T)
         where T: input::winit::dpi::Pixel
     {
         self.renderer.screen_size::<T>()
+    }
+
+    /// returns the screen width in the format you decide,
+    /// ex:
+    /// ```
+    /// let width = app.screen_width::<f32>()
+    ///
+    /// let width: f32 = self.screen_width();
+    /// ```
+    pub fn screen_width<T>(&self) -> T
+        where T: input::winit::dpi::Pixel
+    {
+        self.renderer.screen_size::<T>().0
+    }
+
+    /// returns the screen heigth in the format you decide,
+    /// ex:
+    /// ```
+    /// let heigth = app.screen_heigth::<f32>()
+    ///
+    /// let heigth: f32 = self.screen_heigth();
+    /// ```
+    pub fn screen_heigth<T>(&self) -> T
+        where T: input::winit::dpi::Pixel
+    {
+        self.renderer.screen_size::<T>().1
     }
 }
 

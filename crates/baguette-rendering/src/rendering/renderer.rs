@@ -3,19 +3,13 @@ use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard};
 use crate::*;
 use input::winit::{event_loop::ActiveEventLoop, window::{Window, WindowAttributes}};
 
-pub struct Renderer<'a>
-{
-    data: &'a mut RendererData
-}
+pub struct Renderer<'a>(&'a mut RendererData);
 
 impl<'a> From<&'a mut RendererData> for Renderer<'a> 
 {
     fn from(data: &'a mut RendererData) -> Self
     {
-        Self
-        {
-            data
-        }
+        Self(data)
     }
 }
 
@@ -23,27 +17,51 @@ impl Renderer<'_>
 {
     pub fn ui(&self) -> ui::Ui
     {
-        (&self.data.ui).into()
+        (&self.0.ui).into()
     }
 
     /// todo: make option to create camera
     pub fn get_camera(&mut self) -> Camera
     {
-        self.data.camera.clone()
+        self.0.camera.clone()
     }
 
     /// loads a sprite to be rendered,
     /// uses a builder type to describe how the sprite will be loaded
-    pub fn load_sprite(&mut self, loader: SpriteLoader) -> Sprite
+    pub fn add_sprite(&mut self, sprite: SpriteBuilder) -> Sprite
     {
-        let ctx = self.data.ctx.clone();
-        let pass = self.data.get_or_insert_pass::<SpritePass>();
-        pass.add_sprite(ctx, loader)
+        let ctx = self.0.ctx.read().expect("aw heell naww");
+
+        let renderpasses = self.0.passes
+            .get_or_insert_with(Default::default);
+
+
+        renderpasses.add_sprite(&ctx, sprite)
+
     }
 
-    pub fn screen_size<T: input::winit::dpi::Pixel>(&self) -> input::winit::dpi::PhysicalSize<T>
+    pub fn add_tilemap(&mut self, tilemap: TilemapBuilder<FullyConstructed>)
     {
-        self.data.window.as_ref().unwrap().inner_size().cast()
+        let ctx = self.0.ctx.read().expect("aw heell naww");
+
+        let renderpasses = self.0.passes
+            .get_or_insert_with(Default::default);
+
+        renderpasses.add_tilemap(&ctx, tilemap)
+    }
+
+    /// returns the screen size in the format you decide,
+    /// ex:
+    /// ```
+    /// app.screen_size::<f32>()
+    /// ```
+    pub fn screen_size<T>(&self) -> (T,T)
+        where T: input::winit::dpi::Pixel
+    {
+        use input::winit::dpi::Pixel;
+
+        let (width, heigth) = self.0.ctx.read().unwrap().screen.size();
+        (width.cast(), heigth.cast())
     }
 }
 
@@ -52,15 +70,15 @@ pub struct RendererData
 {
     ctx: ContextHandle,
 
-    /// the window that this renderer draws on
-    pub window: Option<Window>,
+    /// the window that the renderer draws on
+    pub window: Option<Arc<Window>>,
     pub ui: ui::UiData,
 
     /// attributes used when creating a window.
     w_attributes: WindowAttributes,
     camera: Camera,   
     adapter: wgpu::Adapter,
-    passes: Option<RenderPasses>,
+    passes: Option<RenderPassCommands>,
     output: FrameOutput,
 
 }
@@ -73,9 +91,9 @@ impl RendererData
         self.camera.data.borrow_mut()
     }
 
-    pub fn resize(&mut self, (width,height): (u32,u32))
+    pub fn resize(&mut self, (width, height): (u32,u32))
     {
-        let mut ctx_write = self.ctx.data.write().expect("aonna it crashed");
+        let mut ctx_write = self.ctx.0.write().expect("aonna it crashed");
         ctx_write.screen.config.width = width;
         ctx_write.screen.config.height = height;
 
@@ -91,51 +109,15 @@ impl RendererData
 
         // resize camera to match new screen size
         self.camera().resize(physical_width / physical_height);
-        
-
-        //CameraData::resize_all(physical_width / physical_height);
 
         self.update_surface()
-    }
-
-    /// returns a mutable reference to the pass of type `T` of this [`Renderer`], either by creating it if it's empty
-    /// or by returning the existing one.
-    fn get_or_insert_pass<T: RenderPass + 'static>(&mut self) -> &mut T
-    {
-        let passes = self.passes.get_or_insert_with(RenderPasses::new);
-
-        // this is a bunch of boilerplate for type conversion 
-        let pass = match (0..passes.renderpasses.len()).find
-        (
-            |&i| match &mut passes.renderpasses[i]
-            {
-                Passes::SpriteSheet(p) => p as &mut dyn std::any::Any,
-            }.is::<T>()
-        )
-        {
-            Some(i) => &mut passes.renderpasses[i],
-            None =>
-            {
-                passes.renderpasses.push(<T>::add_pass(self.ctx.clone()));
-                passes.renderpasses.last_mut().unwrap()
-            }
-        };
-        (
-            match pass
-            {
-                Passes::SpriteSheet(p) => p as &mut dyn std::any::Any,
-            }         
-        )
-        // all type checking has been done before reaching this point so its safe to assume this is Some
-        .downcast_mut().unwrap()
-        
     }
 
     /// returns the render of this [`Renderer`].
     ///
     /// # Errors
     ///
-    /// this function will return an error if the surface is not able to be retrieved.
+    /// this function will return an error if the surface is unable to be retrieved.
     pub fn render
     (
         &mut self,
@@ -146,7 +128,6 @@ impl RendererData
             .read()
             .expect("ctx failed to retrieve while rendering");
 
-        //CameraData::update_all();
         self.camera.data.borrow_mut().update(&ctx);
 
         let camera = &self.camera.data.borrow();
@@ -184,13 +165,10 @@ impl RendererData
                 occlusion_query_set: None
             });
 
-
             if let Some(passes) = &mut self.passes 
             {
-                for render_pass in passes.iter_mut()
-                {
-                    render_pass.draw(&ctx, &mut pass, camera)?
-                }
+                passes.prepare(&ctx);
+                passes.draw(&ctx, &mut pass, camera);
             }
 
             self.ui.render
@@ -264,7 +242,7 @@ impl RendererData
 
     pub fn suspend(&mut self)
     {
-        self.ctx.data.write().unwrap().screen.destroy();
+        self.ctx.0.write().unwrap().screen.destroy();
     }
 
     /// required to be called for any change to [wgpu::Device] to be effective.
@@ -287,7 +265,7 @@ impl RendererData
     /// if any of these limits are exceeded, functions may panic.
     pub fn limits(&self) -> wgpu::Limits
     {
-        self.ctx.data.read().unwrap().device.limits()
+        self.ctx.0.read().unwrap().device.limits()
     }
 
     pub fn begin_egui_frame(&mut self)
@@ -306,10 +284,18 @@ impl RendererData
     /// panics if an appropriate adapter or device is not avaiable.
     #[must_use]
     pub fn new(w_attributes: WindowAttributes) -> Self
-    {
+    {   
         use wgpu::*;
 
-        let instance = Instance::new(InstanceDescriptor::default());
+        let instance = Instance::new(InstanceDescriptor
+        {
+            backends: match cfg!(target_os = "windows")
+            {
+                true => Backends::DX12,
+                false => Backends::PRIMARY
+            },
+            ..Default::default()
+        });
  
         let adapter = pollster::block_on(instance.request_adapter(&RequestAdapterOptions
         {
@@ -325,8 +311,8 @@ impl RendererData
                 &DeviceDescriptor
                 {
                     label: Some("renderer device"),
-                    features: adapter.features(),
-                    limits: adapter.limits(),
+                    required_features: adapter.features(),
+                    required_limits: adapter.limits(),
                 }, 
                 None
             )
@@ -340,7 +326,7 @@ impl RendererData
 
         let output = FrameOutput::new(&device,width,height);
         
-        let ctx_data = ContextHandleData::new(instance, device, queue);
+        let ctx_data = ContextHandleInner::new(instance, device, queue);
 
         let ui = ui::UiData::new(&ctx_data, width,height,scale);
 
@@ -352,10 +338,7 @@ impl RendererData
             ).into()
         };
 
-        let ctx = ContextHandle
-        {
-            data: RwLock::new(ctx_data).into(),
-        };
+        let ctx = ContextHandle(RwLock::new(ctx_data).into());
 
         Self
         {
@@ -379,10 +362,13 @@ impl RendererData
     /// panics if the surface is not capable of being created.
     pub fn resume(&mut self, event_loop: &ActiveEventLoop)
     {    
-        let window = event_loop.create_window(self.w_attributes.clone())
-            .expect("failed to create window");
+        let window = Arc::new
+        (
+            event_loop.create_window(self.w_attributes.clone())
+            .expect("failed to create window")
+        );
 
-        let surface = unsafe { self.ctx.read().unwrap().instance.create_surface(&window) }
+        let surface = self.ctx.read().unwrap().instance.create_surface(window.clone())
             .expect("failed to create surface on window");
         
         self.window = Some(window);
@@ -402,12 +388,13 @@ impl RendererData
             height: 1,
             present_mode: wgpu::PresentMode::Fifo,
             alpha_mode: wgpu::CompositeAlphaMode::Auto,
-            view_formats: vec![]
+            view_formats: vec![],
+            desired_maximum_frame_latency: 2,
         };
 
         ////
 
-        self.ctx.data.write().unwrap().screen = Screen::new(surface, config);
+        self.ctx.0.write().unwrap().screen = Screen::new(surface, config);
         self.update_surface()
     }
 }
@@ -423,14 +410,16 @@ struct FrameOutput
 }
 impl FrameOutput
 {
-    fn new(device: &wgpu::Device, width: u32,height: u32) -> Self 
+    fn new(device: &wgpu::Device, width: u32, height: u32) -> Self 
     {
+        use wgpu::*;
+
         let module = &device.create_shader_module
         (
-            wgpu::ShaderModuleDescriptor
+            ShaderModuleDescriptor
             {
                 label: None,
-                source: wgpu::ShaderSource::Wgsl
+                source: ShaderSource::Wgsl
                 (
                     include_str!("shaders/tex_to_tex_copy.wgsl").into()
                 )
@@ -439,25 +428,25 @@ impl FrameOutput
 
         let bindgroup_layout = &device.create_bind_group_layout
         (
-            &wgpu::BindGroupLayoutDescriptor
+            &BindGroupLayoutDescriptor
             {
                 label: None,
-                entries: &[wgpu::BindGroupLayoutEntry
+                entries: &[BindGroupLayoutEntry
                 {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture 
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Texture 
                     {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
-                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: TextureSampleType::Float { filterable: false },
+                        view_dimension: TextureViewDimension::D2,
                         multisampled: false
                     },
                     count: None
-                },wgpu::BindGroupLayoutEntry
+                },BindGroupLayoutEntry
                 {
                     binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
+                    visibility: ShaderStages::FRAGMENT,
+                    ty: BindingType::Sampler(SamplerBindingType::NonFiltering),
                     count: None
                 }]
             }
@@ -465,22 +454,22 @@ impl FrameOutput
 
         let view = device.create_texture
         (
-            &wgpu::TextureDescriptor
+            &TextureDescriptor
             {
                 label: Some("output texture"),
-                size: wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+                size: Extent3d { width, height, depth_or_array_layers: 1 },
                 mip_level_count: 1,
                 sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Bgra8UnormSrgb,
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+                dimension: TextureDimension::D2,
+                format: TextureFormat::Bgra8UnormSrgb,
+                usage: TextureUsages::RENDER_ATTACHMENT | TextureUsages::TEXTURE_BINDING,
                 view_formats: &[],
             }
         ).create_view(&Default::default());
 
         let sampler = device.create_sampler
         (
-            &wgpu::SamplerDescriptor 
+            &SamplerDescriptor 
             {
                 label: Some("output sampler"),
                 ..Default::default()
@@ -489,18 +478,18 @@ impl FrameOutput
 
         let bindgroup = device.create_bind_group
         (
-            &wgpu::BindGroupDescriptor
+            &BindGroupDescriptor
             {
                 label: Some("frame output bindgroup"),
                 layout: bindgroup_layout,
-                entries: &[wgpu::BindGroupEntry
+                entries: &[BindGroupEntry
                 {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&view)
-                },wgpu::BindGroupEntry
+                    resource: BindingResource::TextureView(&view)
+                },BindGroupEntry
                 {
                     binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&sampler)
+                    resource: BindingResource::Sampler(&sampler)
                 }]
             }
         );
@@ -510,46 +499,56 @@ impl FrameOutput
             bindgroup,
             pipeline: device.create_render_pipeline
             (
-                &wgpu::RenderPipelineDescriptor
+                &RenderPipelineDescriptor
                 {
                     label: Some("output render pipeline"),
                     layout: Some(&device.create_pipeline_layout
                     (
-                        &wgpu::PipelineLayoutDescriptor
+                        &PipelineLayoutDescriptor
                         {
                             label: Some("output pipeline descriptor"),
                             bind_group_layouts: &[bindgroup_layout],
                             push_constant_ranges: &[]
                         }
                     )),
-                    vertex: wgpu::VertexState
+                    vertex: VertexState
                     {
-                        module, entry_point: "vertex", buffers: &[vertex_layout_desc()]
+                        module, entry_point: "vertex", buffers:
+                        &[
+                            VertexBufferLayout
+                            {
+                                array_stride: std::mem::size_of::<[f32;5]>() as _,
+                                step_mode: wgpu::VertexStepMode::Vertex,
+                                attributes: &vertex_attr_array![0 => Float32x3, 1 => Float32x2],
+                            }
+                        ],
+                        compilation_options: Default::default(),
                     },
-                    primitive: wgpu::PrimitiveState
+                    primitive: PrimitiveState
                     {
-                        topology: wgpu::PrimitiveTopology::TriangleList,
+                        topology: PrimitiveTopology::TriangleList,
                         strip_index_format: None,
-                        front_face: wgpu::FrontFace::Cw,
+                        front_face: FrontFace::Cw,
                         cull_mode: None,
                         unclipped_depth: false,
-                        polygon_mode: wgpu::PolygonMode::Fill,
+                        polygon_mode: PolygonMode::Fill,
                         conservative: false
                     },
                     depth_stencil: None,
-                    multisample: wgpu::MultisampleState::default(),
+                    multisample: MultisampleState::default(),
                     fragment: Some
                     (
-                        wgpu::FragmentState 
+                        FragmentState 
                         {
                             module,
                             entry_point: "fragment",
-                            targets: &[Some(wgpu::ColorTargetState
+                            targets: &[Some(ColorTargetState
                             {
-                                format: wgpu::TextureFormat::Bgra8UnormSrgb,
-                                blend: Some(wgpu::BlendState::REPLACE),
-                                write_mask: wgpu::ColorWrites::ALL
-                            })]
+                                format: TextureFormat::Bgra8UnormSrgb,
+                                blend: Some(BlendState::REPLACE),
+                                write_mask: ColorWrites::ALL
+                            })],
+                            compilation_options: Default::default(),
                         }
                     ),
                     multiview: None
@@ -561,8 +560,19 @@ impl FrameOutput
                 &wgpu::util::BufferInitDescriptor
                 {
                     label: None,
-                    contents: bytemuck::cast_slice(&vertices_from_size(1., 1.)),
-                    usage: wgpu::BufferUsages::VERTEX
+                    contents: bytemuck::cast_slice::<[f32;5], u8>
+                    (
+                        &[
+                           [-1., 1., 0., 0., 0.],
+                           [-1., -1., 0., 0., 1.],
+                           [1., -1., 0., 1., 1.],
+
+                           [1., -1., 0., 1., 1.],
+                           [-1., 1., 0., 0., 0.],
+                           [1., 1., 0., 1., 0.],
+                        ]
+                    ),
+                    usage: BufferUsages::VERTEX
                 }
             ),
             view,
@@ -666,22 +676,19 @@ impl FrameOutput
 }
 
 #[derive(Clone)]
-pub struct ContextHandle
-{
-    pub data: Arc<RwLock<ContextHandleData>>
-}
+pub struct ContextHandle(Arc<RwLock<ContextHandleInner>>);
 
 impl ContextHandle
 {
     pub fn read(&self)
-        -> Result<RwLockReadGuard<ContextHandleData>,
-        PoisonError<RwLockReadGuard<ContextHandleData>>>
+        -> Result<RwLockReadGuard<ContextHandleInner>,
+        PoisonError<RwLockReadGuard<ContextHandleInner>>>
     {
-        self.data.read()
+        self.0.read()
     }
 }
 
-pub struct ContextHandleData
+pub struct ContextHandleInner
 {
     pub instance: wgpu::Instance,
     pub device: wgpu::Device,
@@ -691,13 +698,13 @@ pub struct ContextHandleData
 
 pub struct Screen
 {
-    pub surface: Option<wgpu::Surface>,
+    pub surface: Option<wgpu::Surface<'static>>,
     pub config: wgpu::SurfaceConfiguration
 }
 
 impl Screen
 {
-    pub fn new(surface : wgpu::Surface, config : wgpu::SurfaceConfiguration) -> Self
+    pub fn new(surface: wgpu::Surface<'static>, config : wgpu::SurfaceConfiguration) -> Self
     {
         Self
         {
@@ -710,9 +717,15 @@ impl Screen
     {
         self.surface.take();
     }
+
+    /// the size (in pixels) of the screen we are rendering to
+    pub fn size(&self) -> (u32,u32)
+    {
+        (self.config.width, self.config.height)
+    }
 }
 
-impl ContextHandleData
+impl ContextHandleInner
 {
     pub(super) fn new(instance: wgpu::Instance, device: wgpu::Device, queue: wgpu::Queue) -> Self
     {
@@ -730,9 +743,10 @@ impl ContextHandleData
                     format: wgpu::TextureFormat::Bgra8UnormSrgb,
                     width: 1,
                     height: 1,
-                    present_mode: wgpu::PresentMode::Fifo,
+                    present_mode: wgpu::PresentMode::AutoVsync,
                     alpha_mode: wgpu::CompositeAlphaMode::Auto,
-                    view_formats: vec![]
+                    view_formats: vec![],
+                    desired_maximum_frame_latency: 2,
                 }
             }
         }      
@@ -741,7 +755,7 @@ impl ContextHandleData
 
 #[inline]
 /// gets a reference to the device instance
-pub(crate) fn device(ctx: &ContextHandleData) -> &wgpu::Device
+pub(crate) fn device(ctx: &ContextHandleInner) -> &wgpu::Device
 {
     &ctx.device
 }
@@ -751,7 +765,7 @@ pub(crate) fn device(ctx: &ContextHandleData) -> &wgpu::Device
 /// 
 /// A Queue executes recorded `CommandBuffer` objects and provides convenience methods 
 /// for writing to buffers and textures
-pub(crate) fn queue(ctx: &ContextHandleData) -> &wgpu::Queue
+pub(crate) fn queue(ctx: &ContextHandleInner) -> &wgpu::Queue
 {
     &ctx.queue
 }

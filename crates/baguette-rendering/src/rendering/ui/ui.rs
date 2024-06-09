@@ -50,7 +50,7 @@ struct ScreenData
 
 impl UiData
 {
-    pub(crate) fn new(ctx: &crate::ContextHandleData, width: u32, height: u32, scale: f32) -> Self
+    pub(crate) fn new(ctx: &crate::ContextHandleInner, width: u32, height: u32, scale: f32) -> Self
     {
         Self
         {
@@ -74,7 +74,7 @@ impl UiData
         &'a mut self, pass: &mut wgpu::RenderPass<'a>,
         window: &crate::Window,
         target: &egui_winit::winit::event_loop::ActiveEventLoop,
-        ctx: &std::sync::RwLockReadGuard<'_, crate::ContextHandleData>
+        ctx: &crate::ContextHandleInner
     )
     {
         let id = &self.state.ctx.viewport_id();

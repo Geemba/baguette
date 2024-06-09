@@ -1,5 +1,10 @@
 use std::{cell::RefCell, sync::Arc};
+use util::TBuffer;
+
 use crate::*;
+
+/// 4 x 4 matrix
+type Matrix = [[f32; 4]; 4];
 
 #[derive(Clone)]
 /// a handle to the scenes camera
@@ -37,12 +42,11 @@ pub(crate) struct CameraData
 
 pub struct CameraBinding
 {
-    pub buffer: wgpu::Buffer,
+    pub view_buffer: TBuffer<Matrix>,
     pub bindgroup: wgpu::BindGroup,
-    //pub layout: wgpu::BindGroupLayout
 }
 
-pub(crate) fn camera_bindgroup_layout(ctx: &ContextHandleData) -> wgpu::BindGroupLayout
+pub(crate) fn camera_bindgroup_layout(ctx: &ContextHandleInner) -> wgpu::BindGroupLayout
 {
     ctx.create_bindgroup_layout(wgpu::BindGroupLayoutDescriptor 
     {
@@ -62,15 +66,15 @@ pub(crate) fn camera_bindgroup_layout(ctx: &ContextHandleData) -> wgpu::BindGrou
     })
 }
 
-#[must_use] fn get_binding_data(ctx: &ContextHandleData) -> CameraBinding
+#[must_use] fn get_binding_data(ctx: &ContextHandleInner) -> CameraBinding
 {
-    let buffer = ctx.create_buffer(wgpu::BufferDescriptor
-    {
-        label: Some("Camera Buffer"),
-        size: core::mem::size_of::<[[f32; 4]; 4]>() as u64,
-        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        mapped_at_creation: false
-    });
+    let buffer = ctx.create_buffer
+    (
+        Some("Camera Buffer"),
+        core::mem::size_of::<Matrix>(),
+        wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        false
+    );
 
     let bind_group = ctx.create_bindgroup(wgpu::BindGroupDescriptor
     {
@@ -86,12 +90,12 @@ pub(crate) fn camera_bindgroup_layout(ctx: &ContextHandleData) -> wgpu::BindGrou
         label: Some("camera_bindgroup"),
     });
 
-    CameraBinding { buffer, bindgroup: bind_group }
+    CameraBinding { view_buffer: buffer, bindgroup: bind_group }
 }
 
 impl CameraData
 {
-    pub(crate) fn new(ctx: &ContextHandleData) -> Self
+    pub(crate) fn new(ctx: &ContextHandleInner) -> Self
     {
         Self
         {
@@ -106,13 +110,13 @@ impl CameraData
         self.projection.rebuild_projection(aspect)        
     }
 
-    pub(crate) fn update(&mut self, ctx: &std::sync::RwLockReadGuard<'_, renderer::ContextHandleData>)
+    pub(crate) fn update(&mut self, ctx: &std::sync::RwLockReadGuard<'_, renderer::ContextHandleInner>)
     {
         // we rebuild the projection and pass it to the gpu as array
         let uniform = self.projection.screen_space_matrix().to_cols_array_2d();
     
         // and we queue a buffer write to update the actual matrix on the gpu
-        ctx.write_buffer(&self.bindings.buffer, &uniform);
+        ctx.write_entire_buffer(&self.bindings.view_buffer, &[uniform]);
     }
 
     #[inline]
