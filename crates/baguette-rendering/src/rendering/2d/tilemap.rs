@@ -130,13 +130,11 @@ impl TilemapPass
 {
     pub fn add
     (
-        &mut self, ctx: crate::ContextHandle,
+        &mut self, ctx: &ContextHandleInner,
         TilemapBuilder { maps, layers, filter, pxunit, .. }:
         TilemapBuilder<FullyConstructed>
     )
     {
-        let ctx = &ctx.read().unwrap();
-
         let textures = maps
             .into_iter()
             .map(|tex_desc| self::create_texture_from_path(ctx, tex_desc.path))

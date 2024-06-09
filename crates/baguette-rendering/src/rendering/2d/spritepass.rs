@@ -19,13 +19,9 @@ pub(crate) struct SpritePass
 
 impl SpritePass
 {
-    /// adds a new sprite to render, if another costructed [Sprite] has all the same parameters and texture
-    /// you should add a new [SpriteInstance] inside of that struct using the instance parameter
-    pub fn add_sprite(&mut self, ctx: crate::ContextHandle, builder: SpriteBuilder) -> Sprite
-    {
-        let ctx = ctx.read().expect("aw heel naw you panicked");
-        
-        let mut sprite = Box::new(builder.build(&ctx));
+    pub fn add_sprite(&mut self, ctx: &ContextHandleInner, builder: SpriteBuilder) -> Sprite
+    {   
+        let mut sprite = Box::new(builder.build(ctx));
 
         self.sprites.push
         (
