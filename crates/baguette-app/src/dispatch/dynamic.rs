@@ -143,7 +143,7 @@ impl FsmData<UnactiveState>
         {
             id: <St>::id(),
             transitions,
-            state: |app| Box::new(<St>::new(unsafe { core::mem::transmute(app) }))
+            state: |app| Box::new(<St>::new(app))
         };
 
         match self.current.id != <Dummy as State>::id()
