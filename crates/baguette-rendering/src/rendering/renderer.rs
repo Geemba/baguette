@@ -30,16 +30,24 @@ impl Renderer<'_>
     /// uses a builder type to describe how the sprite will be loaded
     pub fn add_sprite(&mut self, sprite: SpriteBuilder) -> Sprite
     {
-        let ctx = self.0.ctx.clone();
-        let pass = self.0.get_or_insert_pass::<SpritePass>();
-        pass.add_sprite(ctx, sprite)
+        let ctx = self.0.ctx.read().expect("aw heell naww");
+
+        let renderpasses = self.0.passes
+            .get_or_insert_with(Default::default);
+
+
+        renderpasses.add_sprite(&ctx, sprite)
+
     }
 
     pub fn add_tilemap(&mut self, tilemap: TilemapBuilder<FullyConstructed>)
     {
-        let ctx = self.0.ctx.clone();
-        let pass = self.0.get_or_insert_pass::<TilemapPass>();
-        pass.add(ctx, tilemap)
+        let ctx = self.0.ctx.read().expect("aw heell naww");
+
+        let renderpasses = self.0.passes
+            .get_or_insert_with(Default::default);
+
+        renderpasses.add_tilemap(&ctx, tilemap)
     }
 
     /// returns the screen size in the format you decide,
