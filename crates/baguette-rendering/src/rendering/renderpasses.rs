@@ -2,9 +2,14 @@ pub use crate::*;
 
 
 #[derive(Default)]
-pub(crate) struct RenderPasses(Vec<Pass>);
+pub(crate) struct RenderPassCommands
+{
+    sprite_pass: Option<SpritePass>,
+    tilemap_pass: Option<TilemapPass>,
+    layers: FastIndexMap<u8, (bool, bool)>
+}
 
-impl std::ops::Deref for RenderPasses
+impl RenderPassCommands
 {
     type Target = Vec<Pass>;
 

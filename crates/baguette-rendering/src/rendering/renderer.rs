@@ -78,7 +78,7 @@ pub struct RendererData
     w_attributes: WindowAttributes,
     camera: Camera,   
     adapter: wgpu::Adapter,
-    passes: Option<RenderPasses>,
+    passes: Option<RenderPassCommands>,
     output: FrameOutput,
 
 }
