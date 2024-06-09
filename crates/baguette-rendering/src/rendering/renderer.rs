@@ -166,13 +166,10 @@ impl RendererData
                 occlusion_query_set: None
             });
 
-
             if let Some(passes) = &mut self.passes 
             {
-                for render_pass in passes.iter_mut()
-                {
-                    render_pass.draw(&ctx, &mut pass, camera)?
-                }
+                passes.prepare(&ctx);
+                passes.draw(&ctx, &mut pass, camera);
             }
 
             self.ui.render
