@@ -60,92 +60,85 @@ impl SpritePass
             }
         }
     }
-}
 
-impl DrawPass for SpritePass
-{
-    fn draw<'a>
-    (
-        &'a mut self, 
-        ctx: &ContextHandleInner,
-        pass: &mut wgpu::RenderPass<'a>,
-        camera: &'a camera::CameraData
-        
-    )
-    -> Result<(), wgpu::SurfaceError>
+    pub(crate) fn prepare_instances(&mut self)
     {
-        // instance sorting
-        {
-            self.instances.clear();
+        self.layers.clear();
         
-            for (i, sprite) in self.sprites.iter().enumerate()
-            {
-                let sprite = unsafe { sprite.as_ref() };
-
-                for instance in &sprite.instances
-                {
-                    self.instances.push(instance.as_raw(&sprite.slice, sprite.pivot, i as u32))
-                }
-            }
+        for i in 0..self.sprites.len()
+        {
+            let sprite = unsafe { self.sprites[i].as_mut() };
             
-            self.instances.sort_unstable_by
+            for (layer, new_instances) in sprite.layers.iter_mut()
+            {
+                let mut new_instances = new_instances.iter().map
+                (
+                    |instance| instance.as_raw(&sprite.slice, sprite.pivot, i as u32)
+                ).collect();
+
+                match self.layers.get_mut(layer)
+                {
+                    Some(instances) => instances.append(&mut new_instances),
+                    None =>
+                    {
+                        self.layers.insert_sorted(*layer, new_instances);
+                    }
+                }
+            }     
+        }
+        
+        for instances in self.layers.values_mut()
+        {
+            instances.sort_unstable_by
             (
                 |instance, other| unsafe
                 {
                     // instance
-
+            
                     let instance_pivot = self.sprites[instance.bind_idx as usize].as_ref().pivot.unwrap_or_default().y;
                         
                     let instance_y_pos = instance.transform[3][1]; // [3] is the translation, [1] is the y position
-
+            
                     // other
-
+            
                     let other_pivot = self.sprites[other.bind_idx as usize].as_ref().pivot.unwrap_or_default().y;
-
+            
                     let other_y_pos = other.transform[3][1]; // [3] is the translation, [1] is the y position
-
+            
                     //
-
+            
                     f32::total_cmp
                     (
                         &(instance_y_pos + instance_pivot), 
                         &(other_y_pos + other_pivot) 
                     ).reverse()
                 }
-            );
+            )   
         }
-        
+    }
+
+    pub(crate) fn draw<'a>
+    (
+        &'a self,
+        ctx: &ContextHandleInner,
+        pass: &mut wgpu::RenderPass<'a>,
+        camera: &'a camera::CameraData,
+        layer: u8
+    )
+    {
+        let instances = &self.layers[&layer];
         let bindings = self.bindings.as_ref().unwrap();
-        ctx.write_entire_buffer(&bindings.instance_buffer, &self.instances);
+        ctx.write_entire_buffer(&bindings.instance_buffer, instances);
 
-        // drawing
-        {
-            pass.set_pipeline(&bindings.render_pipeline);
+        pass.set_pipeline(&bindings.render_pipeline);
 
-            pass.set_bind_group(0, &camera.bindings.bindgroup, &[]);
-            pass.set_bind_group(1, &bindings.bindgroup, &[]);
-            
-            pass.set_vertex_buffer(0, bindings.index_buffer.slice(..));
-            pass.set_vertex_buffer(1, bindings.instance_buffer.slice(..));
+        pass.set_bind_group(0, &camera.bindings.bindgroup, &[]);
+        pass.set_bind_group(1, &bindings.bindgroup, &[]);
+        
+        pass.set_vertex_buffer(0, bindings.index_buffer.slice(..));
+        pass.set_vertex_buffer(1, bindings.instance_buffer.slice(..));
 
-            pass.draw(0..SPRITE_INDICES_U32.len() as u32, 0..self.instances.len() as u32)
-        }
-
-        //for binding in self.sprites.values()
-        //{
-        //    let binding = unsafe { binding.as_ref() };
-
-        //    pass.set_bind_group(0, &binding.binding.bindgroup, &[]);
-        //    pass.set_bind_group(1, &camera.binding.bindgroup, &[]);
-    
-        //    pass.set_vertex_buffer(0, binding.binding.vertex_buffer.slice(..));
-        //    pass.set_vertex_buffer(1, binding.binding.instance_buffer.0.slice(..));
-
-        //    pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-        //    pass.draw_indexed(0..SPRITE_INDICES.len() as u32, 0, 0..binding.binding.instance_buffer.1);
-        //}
-
-        Ok(())
+        pass.draw(0..SPRITE_INDICES_U32.len() as u32, 0..instances.len() as u32)  
     }
 }
 
@@ -162,7 +155,7 @@ pub struct SpriteBuilder
     /// the pivot of the sprite, defaults to 0,0 (the center of the sprite) if [None].
     /// is used both as pivot of rotation and as sorting point with other sprites
     pub(crate) pivot: Option<Vec2>,
-    pub(crate) instances: Vec<SpriteInstance>,
+    pub(crate) instances: FastIndexMap<u8,Vec<SpriteInstance>>,
     /// describes how many pixels of this sprite
     /// represent one unit in the scene
     pub(crate) pxunit: f32,
@@ -175,12 +168,16 @@ impl SpriteBuilder
 {
     pub fn new(path: impl Into<std::path::PathBuf>) -> Self
     {
+
+        let mut instances = FastIndexMap::default();
+        instances.insert(0, vec![Default::default()]);
+
         Self
         {
             path: path.into(),
             filtermode: None,
             pivot: None,
-            instances: vec![Default::default()],
+            instances,
             pxunit: 100.,
             rows: 1,
             columns: 1,
@@ -205,7 +202,8 @@ impl SpriteBuilder
         self
     }
 
-    pub fn instances(mut self, instances: impl IntoIterator<Item = SpriteInstance>) -> Self
+    /// Inserts the instances of this layer
+    pub fn set_layer<const LAYER: u8>(mut self, instances: impl IntoIterator<Item = SpriteInstance>) -> Self
     {
         let instances = instances
             .into_iter()
@@ -213,7 +211,7 @@ impl SpriteBuilder
 
         if !instances.is_empty()
         {
-            self.instances = instances;
+            self.instances.insert(LAYER, instances);
         }
         
         self
@@ -334,7 +332,7 @@ impl SpriteBuilder
 
         SpriteImpl
         {
-            instances,
+            layers: instances,
             texture,
             pivot,
             slice,
