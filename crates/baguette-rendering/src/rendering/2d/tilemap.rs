@@ -1,4 +1,5 @@
-use indexmap::{*, map::Entry};
+use std::ops::Range;
+
 use wgpu::*;
 use crate::{*, util::TBuffer};
 
@@ -29,7 +30,8 @@ pub struct TilemapBuilder<T = PartiallyConstructed>
     rotation: Quat,
     scale: Vec3,
 
-    layers: IndexMap<u8, Vec<Tile>>,
+    layers: FastIndexMap<u8, Vec<Tile>>,
+
     filter: FilterMode,
     pxunit: f32,
     phantom: std::marker::PhantomData<T>
@@ -50,7 +52,7 @@ impl TilemapBuilder
             rotation: Quat::IDENTITY,
             scale: Vec3::ONE,
 
-            layers: indexmap![],
+            layers: Default::default(),
             filter: FilterMode::Nearest,
             pxunit: 100.,
             phantom: std::marker::PhantomData,
@@ -62,7 +64,7 @@ impl<T> TilemapBuilder<T>
 { 
     pub fn add_layer<const LAYER: u8>(mut self, tiles: impl IntoIterator<Item = Tile>) -> Self
     {
-        self.layers.insert(LAYER, tiles.into_iter().collect());
+        self.layers.insert_sorted(LAYER, tiles.into_iter().collect());
 
         self
     }
@@ -104,6 +106,7 @@ impl<T> TilemapBuilder<T>
             layers,
             filter,
             pxunit,
+
             phantom: std::marker::PhantomData,
         }
     }
@@ -117,7 +120,8 @@ impl Default for TilemapBuilder<PartiallyConstructed>
 #[derive(Default)]
 pub(crate) struct TilemapPass
 {
-    layers: IndexMap<u8, Vec<Tile>>,
+    pub layers: FastIndexMap<u8, Vec<Tile>>,
+    ranges: FastHashMap<u8,Range<u32>>,
     tranform: Mat4,
     binding: Option<TilemapBinding>
 }
@@ -138,23 +142,35 @@ impl TilemapPass
             .map(|tex_desc| self::create_texture_from_path(ctx, tex_desc.path))
             .collect::<Vec<Texture>>();
 
-        for (layer_idx, mut tiles) in layers.into_iter()
+        for (layer, mut new_tiles) in layers.into_iter()
         {
-            match self.layers.entry(layer_idx)
+            match self.layers.get_mut(&layer)
             {
-                Entry::Vacant(empty_layer) =>
+                Some(tiles) => tiles.append(&mut new_tiles),
+                None =>
                 {
-                    empty_layer.insert(tiles);
+                    self.layers.insert(layer, new_tiles);
                 }
-                Entry::Occupied(mut layer) => layer.get_mut().append(&mut tiles)
             }
         }
-        
+
         if self.layers.is_empty()
         {
             self.layers.insert(0, vec![Tile::default()]);
         }
+
+        let mut offset = 0;
+
+        let ranges = self.layers.iter().map(|(layer,tiles)|
+        {
+            let len = tiles.len() as _;
+            let range = (*layer, offset..offset + len);
+            offset = len;
+            range
+        }).collect::<FastHashMap<_, _>>();
         
+        self.ranges = ranges;
+
         let instances = self.layers.values().flatten().copied().collect::<Vec<_>>();
 
         if let Some(ref mut binding) = self.binding
@@ -193,9 +209,7 @@ impl crate::DrawPass for TilemapPass
 
         pass.set_index_buffer(binding.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
-        pass.draw_indexed(0..SPRITE_INDICES_U16.len() as _, 0, 0..binding.num_instances);
-        
-        Ok(())
+        pass.draw_indexed(0..SPRITE_INDICES_U16.len() as _, 0, self.ranges[&layer].clone());
     }
 }
 

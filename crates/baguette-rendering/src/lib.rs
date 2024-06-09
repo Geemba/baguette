@@ -4,6 +4,8 @@ pub use input::winit::window::Window;
 
 pub(crate) use baguette_math::*;
 pub(crate) use sprite::{SPRITE_INDICES_U16, SPRITE_INDICES_U32};
+pub(crate) use wgpu::naga::FastHashMap;
+pub(crate) use wgpu::naga::FastIndexMap;
 
 /// image crate reexport
 pub use image;

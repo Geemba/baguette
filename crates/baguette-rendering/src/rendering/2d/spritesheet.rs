@@ -7,7 +7,7 @@ use self::sprite::SpriteImpl;
 pub struct SpriteSheet
 {
     pub inner: Sprite,
-    sections: Vec<SliceSection>,
+    sections: FastIndexMap<u8, Vec<SliceSection>>,
 }
 
 impl Deref for SpriteSheet
@@ -131,7 +131,8 @@ impl<'a> Iterator for IterMut<'a>
 pub struct SpriteSheetBuilder
 {
     inner: SpriteBuilder,
-    sections: Vec<SliceSection>,
+    sections: FastIndexMap<u8, Vec<SliceSection>>,
+    phantom: std::marker::PhantomData<T>
 }
 
 impl SpriteSheetBuilder
