@@ -279,7 +279,7 @@ impl TilemapBinding
 
         let shader = ctx.create_shader_module(include_wgsl!("tilemap.wgsl"));
 
-        let pipeline = Self::get_pipeline(ctx, &shader, textures.len());
+        let pipeline = Self::create_pipeline(ctx, &shader, textures.len());
 
         let matrix = transform.to_cols_array_2d();
 
@@ -358,7 +358,7 @@ impl TilemapBinding
             ctx, &self.views, &self.sampler, &self.layers_texture
         );
 
-        self.pipeline = Self::get_pipeline(ctx, &self.shader, self.views.len())
+        self.pipeline = Self::create_pipeline(ctx, &self.shader, self.views.len())
     }
 
     fn update_instances(&mut self, ctx: &ContextHandleInner, instances: &[Tile])
@@ -370,7 +370,7 @@ impl TilemapBinding
         )
     }
 
-    fn get_pipeline(ctx: &ContextHandleInner, module: &ShaderModule, texture_count: usize) -> RenderPipeline
+    fn create_pipeline(ctx: &ContextHandleInner, module: &ShaderModule, texture_count: usize) -> RenderPipeline
     {
         let pipe_layout = ctx.create_pipeline_layout
         (
