@@ -38,7 +38,7 @@ impl State for Application
 
     fn update(&mut self, _: &mut App, _: &StateEvent)
     {
-        for sprite in self.sprite2.iter_mut()
+        for sprite in self.sprite2.iter_layer_mut(0)
         {
             let height = sprite.translation.y;
 

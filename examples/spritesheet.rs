@@ -26,8 +26,11 @@ impl State for TestA
                 SpriteSheetBuilder::new
                 (
                     "assets/green dude sheet.png",
-                    [(Default::default(), SheetSlices::Range(19..22))],
                     6, 5
+                )
+                .set_layer::<0>
+                (
+                    [(Default::default(), SheetSlices::Range(19..22))]
                 )
             ),
         }
@@ -39,7 +42,7 @@ impl State for TestA
         {
             true =>
             {
-                for (.., section) in self.sprite.iter_mut()
+                for (.., section) in self.sprite.iter_layer_mut(0)
                 {
                     section.next_or_first();
                 }

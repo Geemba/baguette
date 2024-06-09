@@ -25,7 +25,8 @@ impl State for TestA
             sprite: SpriteSheet::new
             (
                 &mut app.renderer,
-                SpriteSheetBuilder::new(r"assets\green dude sheet.png", [], 6, 5)
+                SpriteSheetBuilder::new(r"assets\green dude sheet.png", 6, 5)
+                    .set_layer::<0>([])
             )
         }
     }
@@ -38,7 +39,7 @@ impl State for TestA
         {
             true =>
             {
-                for (.., section) in self.sprite.iter_mut()
+                for (.., section) in self.sprite.iter_layer_mut(0)
                 {
                     section.next_or_first();
                 }

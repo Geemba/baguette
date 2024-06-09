@@ -23,6 +23,12 @@ impl State for AppWithTileMap
                         Tile{ pos: (0.9 ,0.1).into(), ..Default::default() }
                     ]
                 )
+                .add_layer::<2>
+                (
+                    [
+                        Tile{ pos: (-0.5 ,0.0).into(), ..Default::default() },
+                    ]
+                )
                 .add_texture("assets/green dude.png", 1, 1)
                 
         );
