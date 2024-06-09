@@ -1,7 +1,7 @@
 <p align="center">
   <img src="assets/baguette_logo_and_text.png"/>
 
-<h2 align="center">🥖🥖A  simple 2d rust game engine i did in my spare time🥖🥖</h2>
+<h2 align="center">🥖🥖A  simple 2d game engine made in rust🥖🥖</h2>
 
 ## Roadmap
 
