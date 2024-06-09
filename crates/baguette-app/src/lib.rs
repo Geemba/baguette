@@ -65,8 +65,6 @@ impl Default for StateEvent
 #[derive(PartialEq,Debug, Eq, Hash, Clone, Copy)]
 pub struct StateId(core::any::TypeId);
 
-pub struct Empty;
-
 #[macro_export]
 /// changes state if the predicate returns `true`
 /// ```

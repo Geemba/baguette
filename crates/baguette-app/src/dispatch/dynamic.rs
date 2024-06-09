@@ -28,12 +28,14 @@ pub trait State
     }
 }
 
+struct Dummy;
+
 /// an empty state to use as default
-impl State for Empty
+impl State for Dummy
 {
     fn new(_ : &mut App) -> Self where Self : Sized
     {
-        Empty
+        Dummy
     }
 
     fn update(&mut self, _:&mut App, _ : &StateEvent) {}
@@ -111,7 +113,7 @@ impl Default for FsmData<UnactiveState>
         {
             current : UnactiveState
             {
-                id : <Empty as State>::id(),
+                id : <Dummy as State>::id(),
                 transitions: Vec::new,
                 state: |_| Box::new(())
             },
@@ -144,7 +146,7 @@ impl FsmData<UnactiveState>
             state: |app| Box::new(<St>::new(unsafe { core::mem::transmute(app) }))
         };
 
-        match self.current.id != <Empty as State>::id()
+        match self.current.id != <Dummy as State>::id()
         {
             true => { self.states.insert(<St>::id(), state); }
             false => self.current = state
