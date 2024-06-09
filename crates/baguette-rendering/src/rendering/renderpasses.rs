@@ -11,69 +11,86 @@ pub(crate) struct RenderPassCommands
 
 impl RenderPassCommands
 {
-    type Target = Vec<Pass>;
-
-    fn deref(&self) -> &Self::Target
+    pub fn add_sprite(&mut self, ctx: &ContextHandleInner, sprite: SpriteBuilder) -> Sprite
     {
-        &self.0
-    }
-}
+        let sprite_pass = self
+            .sprite_pass
+            .get_or_insert_with(Default::default);
 
-impl std::ops::DerefMut for RenderPasses
-{
-    fn deref_mut(&mut self) -> &mut Self::Target
+        let sprite = sprite_pass.add_sprite(ctx, sprite);
+
+        for (&layer, ..) in sprite.sprite.layers.iter()
+        {
+            match self.layers.get_mut(&layer)
+            {
+                Some((sprite, ..)) => *sprite = true,
+                None =>
+                {
+                    self.layers.insert(layer, (true, false));
+                }
+            } 
+        }
+
+        sprite
+    }
+
+    pub fn add_tilemap(&mut self, ctx: &ContextHandleInner, tilemap: TilemapBuilder<FullyConstructed>)
     {
-        &mut self.0
-    }
-}
+        let tilemap_pass = self
+            .tilemap_pass
+            .get_or_insert_with(Default::default);
 
-pub(crate) enum Pass
-{
-    Sprite(SpritePass),
-    Tilemap(TilemapPass)
-}
-impl Pass 
-{
-    pub(crate) fn draw<'a>
+        #[allow(clippy::let_unit_value)]
+        let tilemap = tilemap_pass.add(ctx, tilemap);
+
+        for (&layer, ..) in tilemap_pass.layers.iter()
+        {
+            match self.layers.get_mut(&layer)
+            {
+                Some((.., tilemap)) => *tilemap = true,
+                None =>
+                {
+                    self.layers.insert(layer, (false, true));
+                }
+            } 
+        }
+
+        tilemap
+    }
+
+    pub fn draw<'a>
     (
-        &'a mut self, ctx: &ContextHandleInner,
+        &'a self, ctx: &ContextHandleInner,
         pass: &mut wgpu::RenderPass<'a>,
         camera: &'a CameraData
-    ) -> Result<(), wgpu::SurfaceError>
+    )
     {
-        match self
+        // draw the tilemap behind and draw the sprites on top for each layer
+        for (&layer, &(sprite_layer, tilemap_layer)) in self.layers.iter()
         {
-            Pass::Sprite(sprite_pass) => sprite_pass.draw(ctx, pass, camera),
-            Pass::Tilemap(tilemap_pass) => tilemap_pass.draw(ctx, pass, camera),
-        }
-    }
-}
+            if let Some(sprite_pass) = &self.sprite_pass
+            {
+                if sprite_layer
+                {
+                    sprite_pass.draw(ctx, pass, camera, layer);
+                }
+            }
 
-impl From<SpritePass> for Pass
-{
-    fn from(pass: SpritePass) -> Self
+            if let Some(tilemap_pass) = &self.tilemap_pass
+            {
+                if tilemap_layer
+                {
+                    tilemap_pass.draw(ctx, pass, camera, layer);
+                }
+            }
+        };
+    }
+    
+    pub(crate) fn prepare(&mut self, _ctx: &ContextHandleInner)
     {
-        Self::Sprite(pass)
+        if let Some(sprite_pass) = &mut self.sprite_pass
+        {
+            sprite_pass.prepare_instances();
+        }     
     }
-}
-
-impl From<TilemapPass> for Pass
-{
-    fn from(pass: TilemapPass) -> Self
-    {
-        Self::Tilemap(pass)
-    }
-}
-
-/// a trait to implement draw commands 
-pub(crate) trait DrawPass: Into<Pass> + Default
-{    
-    #[allow(clippy::cast_possible_truncation)]
-    fn draw<'a>
-    (
-        &'a mut self,
-        ctx: &ContextHandleInner,
-        pass: &mut wgpu::RenderPass<'a>,
-        camera: &'a camera::CameraData
-    ) -> Result<(), wgpu::SurfaceError>;
 }
