@@ -30,7 +30,7 @@ impl DerefMut for SpriteSheet
 
 impl SpriteSheet
 {
-    pub fn new(renderer: &mut crate::Renderer, loader: SpriteSheetBuilder) -> Self
+    pub fn new(renderer: &mut crate::Renderer, loader: SpriteSheetBuilder<ReadyToBuild>) -> Self
     {
         Self
         {
@@ -39,24 +39,26 @@ impl SpriteSheet
         }
     }
 
-    pub fn iter(&mut self) -> Iter
+    pub fn iter_layer(&mut self, layer: u8) -> Iter
     {
         Iter
         {
-            sections: &self.sections,
+            sections: &self.sections[&layer],
             idx: 0,
             sprite: &self.inner.sprite,
+            layer,
         }
     }
 
-    pub fn iter_mut(&mut self) -> IterMut
+    pub fn iter_layer_mut(&mut self, layer: u8) -> IterMut
     {
         IterMut
         {
-            sections: (&mut self.sections).into(),
+            sections: (&mut self.sections[&layer]).into(),
             idx: 0,
             sprite: (&mut *self.inner.sprite).into(),
             _phantom: PhantomData,
+            layer,
         }
     }
 }
@@ -65,6 +67,7 @@ pub struct Iter<'a>
 {
     sections: &'a Vec<SliceSection>,
     sprite: &'a SpriteImpl,
+    layer: u8,
     idx: usize
 }
 
@@ -74,7 +77,7 @@ impl<'a> Iterator for Iter<'a>
 
     fn next(&mut self) -> Option<Self::Item>
     {
-        let item = match self.sprite.instances.get(self.idx)
+        let item = match self.sprite.layers[&self.layer].get(self.idx)
         {
             Some(instance) => Some((instance, &self.sections[self.idx])),
             None => None,
@@ -90,6 +93,7 @@ pub struct IterMut<'a>
     sections: NonNull<Vec<SliceSection>>,
     sprite: NonNull<SpriteImpl>,
     idx: usize,
+    layer: u8,
     _phantom: PhantomData<&'a()>
 }
 
@@ -97,7 +101,7 @@ impl<'a> Drop for IterMut<'a>
 {
     fn drop(&mut self)
     {
-        let instances = unsafe { &mut self.sprite.as_mut().instances };
+        let instances = unsafe { &mut self.sprite.as_mut().layers[&self.layer] };
         let sections = unsafe { self.sections.as_mut() };
 
         for (i, instance) in instances.iter_mut().enumerate()
@@ -113,7 +117,7 @@ impl<'a> Iterator for IterMut<'a>
 
     fn next(&mut self) -> Option<Self::Item>
     {
-        let instances = unsafe { &mut self.sprite.as_mut().instances };
+        let instances = unsafe { &mut self.sprite.as_mut().layers[&self.layer] };
         let sections = unsafe { self.sections.as_mut() };
 
         let item = match instances.get_mut(self.idx)
@@ -127,8 +131,11 @@ impl<'a> Iterator for IterMut<'a>
     }
 }
 
+pub struct LayersNotSet;
+pub struct ReadyToBuild;
+
 /// describes the type of sprite you want to create
-pub struct SpriteSheetBuilder
+pub struct SpriteSheetBuilder<T = LayersNotSet>
 {
     inner: SpriteBuilder,
     sections: FastIndexMap<u8, Vec<SliceSection>>,
@@ -137,77 +144,105 @@ pub struct SpriteSheetBuilder
 
 impl SpriteSheetBuilder
 {
-    pub fn new<'a>
+    pub fn new
     (
         path: impl Into<std::path::PathBuf>,
-        instances: impl IntoIterator<Item = (SpriteInstance, SheetSlices<'a>)>,
         rows: u32,
         columns: u32
     )
     -> Self
     {
-        let mut instances = instances.into_iter().collect::<Vec<_>>();
-
-        if instances.is_empty()
-        {
-            instances.push((Default::default(), SheetSlices::All));
-        }
-
         let inner = SpriteBuilder::new(path)
-            .instances(instances.iter().map(|(instance, ..)| instance.clone()))
-            .tiled_atlas(rows, columns);       
+            .tiled_atlas(rows, columns);
 
-        let SpriteBuilder { rows, columns, .. } = inner;
+        Self
+        {
+            inner,
+            sections: FastIndexMap::default(),
+            phantom: PhantomData,
+        }
+    }
 
-        let sections = instances.iter().map(|(..,tiles)|
+    pub fn set_layer<'a, const LAYER: u8>
+    (
+        mut self,
+        instances: impl IntoIterator<Item = (SpriteInstance, SheetSlices<'a>)>
+    )
+    -> SpriteSheetBuilder<ReadyToBuild>
+    {
+        let (instances, slices): (Vec<_>, Vec<_>) = instances.into_iter().unzip();
+
+        self.inner = self.inner.set_layer::<LAYER>(instances);
+
+        let SpriteBuilder { rows, columns, .. } = self.inner;
+
+        let slices = slices.into_iter().map(|tiles|
         {
             SliceSection
             {
                 rows,
                 columns,
-                indices: tiles.clone().into_indices(rows, columns),
+                indices: tiles.into_indices(rows, columns),
                 index: 0
             }
-        }).collect();
+        }).collect::<Vec<_>>();
 
-        Self
+        match slices.is_empty()
         {
-            inner,
-            sections
+            false => self.sections.insert(LAYER, slices),
+            true => self.sections.insert(LAYER, vec![SliceSection
+            {
+                rows,
+                columns,
+                ..Default::default()
+            }])
+        };
+
+        SpriteSheetBuilder
+        {
+            inner: self.inner,
+            sections: self.sections,
+            phantom: PhantomData,
         }
     }
-
-
 }
 
+/// contains the specific indices to display
 #[derive(Clone)]
 pub struct Tiles { index: usize, indices: Box<[u32]> }
 
-#[derive(Clone, Default)]
+/// contains the section to display from the [`SpriteSheet`], along with the next sections that will be displayed
+#[derive(Clone)]
 pub struct SliceSection
 {
     rows: u32,
     columns: u32,
 
+    /// contains the specific indices to display, if this is [None]
+    /// then all the sections of the [SpriteSheet] are avaiable for display
     indices: Option<Tiles>,
     /// the index into the uv buffer for this section
     index: u32
 }
 
-impl SliceSection
+impl Default for SliceSection
 {
-    pub fn empty() -> Self
+    /// returns an unsliced section with no indices
+    fn default() -> Self
     {
         Self
         {
             rows: 1,
             columns: 1,
-
+    
             indices: None,
             index: 0,
         }
     }
+}
 
+impl SliceSection
+{
     /// sets the index of the sheet to render with the provided row and column value
     pub fn set(&mut self, row: u32, column: u32)
     {
@@ -224,6 +259,7 @@ impl SliceSection
     /// or the first one if it exceeds the maximum avaiable index
     pub fn next_or_first(&mut self)
     {
+        println!("{}", self.index);
         self.index = match self.indices
         {
             Some(ref mut tiles) => match tiles.indices.get(tiles.index + 1)
@@ -239,8 +275,7 @@ impl SliceSection
                     tiles.indices[0]
                 }
             }
-            
-            None => match self.index <= (self.rows * self.columns - 1)
+            None => match self.index < (self.rows * self.columns)
             {
                 true => self.index + 1,
                 false => 0
