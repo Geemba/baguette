@@ -688,14 +688,6 @@ impl ContextHandle
     }
 }
 
-pub struct ContextHandleInner
-{
-    pub instance: wgpu::Instance,
-    pub device: wgpu::Device,
-    pub queue: wgpu::Queue,
-    pub screen: Screen
-}
-
 pub struct Screen
 {
     pub surface: Option<wgpu::Surface<'static>>,
@@ -723,6 +715,14 @@ impl Screen
     {
         (self.config.width, self.config.height)
     }
+}
+
+pub struct ContextHandleInner
+{
+    pub instance: wgpu::Instance,
+    pub device: wgpu::Device,
+    pub queue: wgpu::Queue,
+    pub screen: Screen
 }
 
 impl ContextHandleInner
