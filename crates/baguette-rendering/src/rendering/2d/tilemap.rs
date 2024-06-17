@@ -57,14 +57,29 @@ impl TilemapBuilder
             pxunit: 100.,
             phantom: std::marker::PhantomData,
         }
-    }    
+    }
+
+    pub fn with_textures(textures: impl FromIterator<(std::path::PathBuf, u32, u32)>) -> TilemapBuilder<FullyConstructed>
+    {
+        TilemapBuilder
+        {
+            maps: todo!(),
+            position: todo!(),
+            rotation: todo!(),
+            scale: todo!(),
+            layers: todo!(),
+            filter: todo!(),
+            pxunit: todo!(),
+            phantom: std::marker::PhantomData,
+        }
+    }
 }
 
 impl<T> TilemapBuilder<T>
-{ 
-    pub fn add_layer<const LAYER: u8>(mut self, tiles: impl IntoIterator<Item = Tile>) -> Self
+{
+    pub fn add_layer(mut self, layer: u8, tiles: impl IntoIterator<Item = Tile>) -> Self
     {
-        self.layers.insert_sorted(LAYER, tiles.into_iter().collect());
+        self.layers.insert_sorted(layer, tiles.into_iter().collect());
 
         self
     }
