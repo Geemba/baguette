@@ -18,7 +18,7 @@ pub(crate) struct SpritePass
 impl SpritePass
 {
     pub fn add_sprite(&mut self, ctx: &ContextHandleInner, builder: SpriteBuilder) -> Sprite
-    {   
+    {
         let mut sprite = Box::new(builder.build(ctx));
 
         self.sprites.push
