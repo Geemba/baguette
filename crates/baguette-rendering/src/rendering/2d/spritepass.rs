@@ -4,7 +4,7 @@ use util::TBuffer;
 
 use std::{ path::PathBuf, ptr::NonNull };
 
-/// a starting value for how many sprite the instance buffer could hold
+/// the capacity of instances we will hold before resizing
 const SPRITE_INSTANCES_INITIAL_CAPACITY: usize = 50;
 
 #[derive(Default)]
