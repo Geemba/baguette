@@ -2,7 +2,9 @@ use input::
 {
     winit::
     {
-        application::ApplicationHandler, event_loop::ActiveEventLoop, window::WindowAttributes
+        application::ApplicationHandler,
+        event_loop::ActiveEventLoop,
+        window::WindowAttributes
     },
     WindowEvent
 };
