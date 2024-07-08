@@ -1,11 +1,12 @@
 [package]
 name = "baguette"
-version = "0.2.0"
+version = "0.2.5"
 edition = "2021"
 keywords = ["gamedev", "graphics"]
 
 [workspace.package]
 license = "MIT OR Apache-2.0"
+version = "0.2.5"
 
 [dependencies]
 app = { package = "baguette-app", path = "crates/baguette-app" }
