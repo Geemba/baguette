@@ -714,3 +714,146 @@ fn bindgroup_layout(ctx: &ContextHandleInner, count: usize) -> wgpu::BindGroupLa
         }
     )
 }
+
+#[derive(Default, Clone)]
+/// contains all the loaded sprites in the scene
+pub(crate) struct Handle(Arc<RwLock<SpritePassInner>>);
+
+impl Handle
+{
+    /// Locks this `RwLock` with shared read access, blocking the current thread
+    /// until it can be acquired.
+    ///
+    /// The calling thread will be blocked until there are no more writers which
+    /// hold the lock. There may be other readers currently inside the lock when
+    /// this method returns.
+    ///
+    /// Note that attempts to recursively acquire a read lock on a `RwLock` when
+    /// the current thread already holds one may result in a deadlock.
+    ///
+    /// Returns an RAII guard which will release this thread's shared access
+    /// once it is dropped.
+    pub fn read(&self) -> RwLockReadGuard<SpritePassInner>
+    {
+        match cfg!(debug_assertions)
+        {
+            true => self.0
+                .try_read_for(std::time::Duration::from_secs(2))
+                .expect("handle access timeout"),
+
+            false => self.0.read(),
+        } 
+    }
+
+    /// Locks this `RwLock` with exclusive write access, blocking the current
+    /// thread until it can be acquired.
+    ///
+    /// This function will not return while other writers or other readers
+    /// currently have access to the lock.
+    ///
+    /// Returns an RAII guard which will drop the write access of this `RwLock`
+    /// when dropped.
+    pub fn write(&self) -> RwLockWriteGuard<SpritePassInner>
+    {
+        match cfg!(debug_assertions)
+        {
+            true => self.0
+                .try_write_for(std::time::Duration::from_secs(2))
+                .expect("handle access timeout"),
+
+            false => self.0.write(),
+        } 
+    }
+
+    /// retrieve the pointer without any type of locking
+    /// 
+    /// **Safety:** you must ensure that there are no data races when dereferencing the
+    /// returned pointer, for example if the current thread logically owns a
+    /// `RwLockReadGuard` or `RwLockWriteGuard` but that guard has been discarded
+    /// using `mem::forget`.
+    pub unsafe fn as_ptr(&self) -> NonNull<SpritePassInner>
+    {
+        NonNull::new_unchecked(self.0.data_ptr())
+    }
+
+    /// retrieve the immutable reference without any type of locking
+    /// 
+    /// **Safety:** you must ensure that there will be no data races, for example 
+    /// if the current thread logically owns a `RwLockReadGuard` or `RwLockWriteGuard`
+    ///  but that guard has been discarded using `mem::forget`.
+    pub unsafe fn as_ref(&self) -> &SpritePassInner
+    {
+        self.as_ptr().as_ref()
+    }
+
+    pub fn update_binding(&mut self, ctx: &ContextHandleInner)
+    {
+        let write_lock = self.write();
+        let sprites = &write_lock.sprites;
+
+        let textures = &sprites.values().map(|sprite| &sprite.texture.view).collect::<Vec<_>>();
+        let samplers = &sprites.values().map(|sprite| &sprite.texture.sampler).collect::<Vec<_>>();
+        let sprite_slices = &sprites.values().map(|sprite| sprite.slice).collect::<Vec<_>>();
+
+        let binding = unsafe { &mut self.as_ptr().as_mut().binding };
+
+        match binding
+        {
+            Some(ref mut binding) if !sprite_slices.is_empty() => 
+            {
+                ctx.write_entire_buffer(&binding.sprite_slices_storage_buffer, sprite_slices);
+
+                binding.bindgroup = SpriteBinding::create_bindgroup
+                (
+                    ctx,
+                    textures,
+                    samplers,
+                    &binding.sprite_slices_storage_buffer,
+                    sprite_slices,
+                    &binding.uv_uniform
+                );
+
+                binding.render_pipeline = SpriteBinding::create_pipeline(ctx, &binding.shader, textures.len())
+            },
+
+            None => *binding = Some(SpriteBinding::new
+            (
+                ctx,
+                SPRITE_INSTANCES_INITIAL_CAPACITY,
+                textures, samplers, sprite_slices
+            )),
+
+            _ => ()
+        }        
+    }
+    
+    pub unsafe fn raw(&self) -> &RawRwLock
+    {
+        self.0.raw()
+    }
+}
+
+#[derive(Default)]
+pub struct SpritePassInner
+{
+    pub sprites: FastIndexMap<u16, SpriteInner>,
+    pub(crate) binding: Option<SpriteBinding>,
+}
+
+pub struct SpriteInner
+{
+    pub(crate) layers: FastIndexMap<u8, Vec<SpriteInstance>>,
+    pub(crate) slice: SpriteSlice,
+    pub(crate) pivot: Option<Vec2>,
+
+    /// the texture that the sprite will use
+    pub(crate) texture: TextureData,
+}
+
+impl SpriteInner
+{
+    pub fn size(&self) -> Vec2
+    {
+        self.texture.size()
+    }
+}
