@@ -56,10 +56,22 @@ pub enum StateEvent
     Exit(StateId)
 }
 
-impl Default for StateEvent
+pub(crate) struct Dummy;
+
+#[derive(PartialEq, Debug, Eq, Hash, Clone, Copy)]
+pub struct StateId(TypeId);
+
+impl StateId
 {
-    /// the default state is enter
-    fn default() -> Self { StateEvent::Enter }
+    pub(crate) fn of_value<T: AppState + ?Sized + 'static>(value: &T) -> Self
+    {
+        Self(Any::type_id(value))
+    }
+
+    pub fn of<T: AppState + Sized + 'static>() -> Self
+    {
+        Self(TypeId::of::<T>())
+    }
 }
 
 impl Default for StateId
