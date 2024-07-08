@@ -3,7 +3,7 @@ use app::*;
 fn main()
 {
     baguette::new()
-        .add_loop::<Application>()
+        .add_state::<Application>()
         .run()
 }
 
@@ -14,7 +14,7 @@ struct Application
     go_up: bool
 }
 
-impl State for Application
+impl AppState for Application
 {
     fn new(app: &mut App) -> Self where Self: Sized
     {
