@@ -6,7 +6,7 @@ use ui::egui;
 fn main()
 {
     baguette::new()
-        .add_loop::<TestA>()
+        .add_state::<TestA>()
         .run()
 }
 
@@ -16,7 +16,7 @@ struct TestA
     sprite: Sprite,
 }
 
-impl State for TestA
+impl AppState for TestA
 {
     fn new(app: &mut App) -> Self where Self: Sized
     {
