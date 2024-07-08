@@ -48,9 +48,10 @@ impl Dispatcher for Box<dyn dynamic::AppState>
 ///         ...
 ///     }
 /// ```
+#[derive(Default)]
 pub enum StateEvent
 {
-    Enter,
+    #[default] Enter,
     Update,
     Exit(StateId)
 }
