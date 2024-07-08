@@ -2,7 +2,11 @@ use crate::*;
 use sprite::*;
 use util::TBuffer;
 
-use std::{ path::PathBuf, ptr::NonNull };
+use std::ptr::NonNull;
+use std::sync::Arc;
+use std::path::PathBuf;
+
+use parking_lot::*;
 
 /// the capacity of instances we will hold before resizing
 const SPRITE_INSTANCES_INITIAL_CAPACITY: usize = 50;
@@ -10,124 +14,113 @@ const SPRITE_INSTANCES_INITIAL_CAPACITY: usize = 50;
 #[derive(Default)]
 pub(crate) struct SpritePass
 {
-    sprites: Vec<NonNull<SpriteImpl>>,
-    layers: FastIndexMap<u8,Vec<SpriteInstanceRaw>>,
-    bindings: Option<SpriteBinding>
+    sprites: Handle,
+    instances: Vec<SpriteInstanceRaw>,
+}
+
+impl Drop for SpritePass
+{
+    fn drop(&mut self)
+    {
+        let mut lock = self.sprites.write();
+        lock.sprites.clear();
+    }
 }
 
 impl SpritePass
 {
-    pub fn add_sprite(&mut self, ctx: &ContextHandleInner, builder: SpriteBuilder) -> Sprite
+    pub fn add_sprite(&mut self, ctx: ContextHandle, builder: SpriteBuilder) -> Sprite
     {
-        let mut sprite = Box::new(builder.build(ctx));
+        let id = baguette_math::rand::u16(..);
 
-        self.sprites.push
+        let sprite = Sprite::_crate_impl_new
         (
-            (&mut *sprite).into()
+            id, self.sprites.clone(), ctx.clone()
         );
 
-        self.update_bindings(ctx);
+        let ctx = &ctx.read();
 
-        Sprite
-        {
-            sprite,
-            sprites: (&mut self.sprites).into()
-        }
+        self.sprites.write().sprites.insert(id, builder.build(ctx));
+        self.sprites.update_binding(ctx);
+
+        sprite
     }
 
-    fn update_bindings(&mut self, ctx: &ContextHandleInner)
-    {
-        unsafe
-        {
-            let textures = self.sprites.iter().map(|sprite| &sprite.as_ref().texture.view).collect::<Vec<_>>();
-            let samplers = self.sprites.iter().map(|sprite| &sprite.as_ref().texture.sampler).collect::<Vec<_>>();
-            let sprite_slices = &self.sprites.iter().map(|sprite| sprite.as_ref().slice).collect::<Vec<_>>();
-
-            match self.bindings
-            {
-                Some(ref mut binding) =>
-                    binding.update(ctx, &textures, &samplers, sprite_slices),
-                
-                None => 
-                {
-                    self.bindings = Some(SpriteBinding::new
-                    (
-                        ctx,
-                        SPRITE_INSTANCES_INITIAL_CAPACITY,
-                        &textures, &samplers, sprite_slices
-                    ));
-                }
-            }
-        }
-    }
-
+    /// Safety: this function locks the [Handle] exclusively,
+    /// be sure to call [Self::draw] after to unlock access
     pub(crate) fn prepare_instances(&mut self)
     {
-        self.layers.clear();
-        
-        for i in 0..self.sprites.len()
+        self.instances.clear();
+
+        // Safety: lock shared, unlocking is done by the draw function 
+        // which is called right after
+        let sprites = &self.sprites.read().sprites;
+
+        for i in 0..sprites.len()
         {
-            let sprite = unsafe { self.sprites[i].as_mut() };
-            
-            for (layer, new_instances) in sprite.layers.iter_mut()
+            let sprite = &sprites[i];
+
+            for (.., new_instances) in sprite.layers.iter()
             {
-                let mut new_instances = new_instances.iter().map
+                let mut layer_instances = new_instances.iter().map
                 (
                     |instance| instance.as_raw(&sprite.slice, sprite.pivot, i as u32)
                 ).collect();
 
-                match self.layers.get_mut(layer)
-                {
-                    Some(instances) => instances.append(&mut new_instances),
-                    None =>
-                    {
-                        self.layers.insert_sorted(*layer, new_instances);
-                    }
-                }
+                self.instances.append(&mut layer_instances)
             }     
         }
+    
+        self.instances.sort_unstable_by
+        (
+            |instance, other|
+            {
+                // instance
         
-        for instances in self.layers.values_mut()
-        {
-            instances.sort_unstable_by
-            (
-                |instance, other| unsafe
-                {
-                    // instance
-            
-                    let instance_pivot = self.sprites[instance.bind_idx as usize].as_ref().pivot.unwrap_or_default().y;
-                        
-                    let instance_y_pos = instance.transform[3][1]; // [3] is the translation, [1] is the y position
-            
-                    // other
-            
-                    let other_pivot = self.sprites[other.bind_idx as usize].as_ref().pivot.unwrap_or_default().y;
-            
-                    let other_y_pos = other.transform[3][1]; // [3] is the translation, [1] is the y position
-            
-                    //
-            
-                    f32::total_cmp
-                    (
-                        &(instance_y_pos + instance_pivot), 
-                        &(other_y_pos + other_pivot) 
-                    ).reverse()
-                }
-            )   
-        }
+                let instance_pivot = sprites[instance.bind_idx as usize].pivot.unwrap_or_default().y;
+                    
+                let instance_y_pos = instance.transform[3][1]; // [3] is the translation, [1] is the y position
+        
+                // other
+        
+                let other_pivot = sprites[other.bind_idx as usize].pivot.unwrap_or_default().y;
+        
+                let other_y_pos = other.transform[3][1]; // [3] is the translation, [1] is the y position
+        
+                //
+        
+                f32::total_cmp
+                (
+                    &(instance_y_pos + instance_pivot), 
+                    &(other_y_pos + other_pivot) 
+                ).reverse()
+            }
+        )   
     }
 
+    /// Safety: must be called after [Self::prepare_instances]
     pub(crate) fn draw<'a>
     (
         &'a self,
         ctx: &ContextHandleInner,
         pass: &mut wgpu::RenderPass<'a>,
         camera: &'a camera::CameraData,
-        layer: u8
     )
     {
-        let instances = &self.layers[&layer];
-        let bindings = self.bindings.as_ref().unwrap();
+        use parking_lot::lock_api::RawRwLock;
+
+        let instances = &self.instances;
+
+        // Safety: lock shared and pass the bindings
+        let bindings = unsafe
+        {
+            self.sprites.raw().lock_shared();
+
+            self.sprites.as_ptr()
+                .as_ref().binding
+                .as_ref().unwrap()
+        };
+        
         ctx.write_entire_buffer(&bindings.instance_buffer, instances);
 
         pass.set_pipeline(&bindings.render_pipeline);
@@ -138,7 +131,13 @@ impl SpritePass
         pass.set_vertex_buffer(0, bindings.index_buffer.slice(..));
         pass.set_vertex_buffer(1, bindings.instance_buffer.slice(..));
 
-        pass.draw(0..SPRITE_INDICES_U32.len() as u32, 0..instances.len() as u32)  
+        pass.draw(0..SPRITE_INDICES_U32.len() as u32, 0..instances.len() as u32);
+
+        // Safety: lock has been locked in the lines before
+        unsafe 
+        {
+            self.sprites.raw().unlock_shared()
+        }
     }
 }
 
@@ -228,7 +227,7 @@ impl SpriteBuilder
         /// loads a [`SpriteBinding`] from a [crate::SpriteBuilder].
     ///
     /// panics if the path is not found
-    pub fn build(self, ctx: &ContextHandleInner) -> SpriteImpl
+    pub fn build(self, ctx: &ContextHandleInner) -> SpriteInner
     {
         let SpriteBuilder { ref path, filtermode, pivot, instances, pxunit, rows, columns } = self;
 
@@ -330,7 +329,7 @@ impl SpriteBuilder
 
         let slice = SpriteSlice::new(vertices, rows, columns);
 
-        SpriteImpl
+        SpriteInner
         {
             layers: instances,
             texture,
@@ -345,9 +344,11 @@ impl SpriteBuilder
 pub(crate) struct SpriteSlice
 {
     pub(crate) vertices: [[f32; 2]; 4],
+    /// how many rows does this sprite have, if this is one it means it's not sliced
     pub(crate) rows: u32,
+    /// how many columns does this sprite have, if this is one it means it's not sliced
     pub(crate) columns: u32,
-    _padding: [f32; 2]
+    _padding: [u8; 8]
 }
 
 impl SpriteSlice
@@ -428,7 +429,7 @@ impl SpriteBinding
 
         ctx.write_entire_buffer(&sprite_slices_storage_buffer, sprite_slices);
 
-        let uvs: [[f32; 4]; 4] =
+        let uvs: [Uv; 4] =
         [
             [0.,0., /*<- data, */ 0., 0. /* <- padding */],
             [0.,1., /*<- data, */ 0., 0. /* <- padding */],
