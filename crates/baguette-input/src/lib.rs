@@ -6,6 +6,8 @@ use winit::keyboard::PhysicalKey;
 pub use winit::event::*;
 pub use winit::keyboard::KeyCode;
 
+pub use baguette_math;
+
 pub use winit;
 
 #[derive(Default)]
@@ -47,12 +49,9 @@ impl InputHandler
                         }
                     }
                 }
-                else 
+                else if let Some(InputState { released, .. }) = self.current_pressed_keys.get_mut(physical_key)
                 {
-                    if let Some(InputState { released, .. }) = self.current_pressed_keys.get_mut(physical_key)
-                    {
-                        *released = true;
-                    }
+                    *released = true;
                 }
             }
 
@@ -135,7 +134,7 @@ impl Input<'_>
     {
         self.handler.current_pressed_keys
             .get(&PhysicalKey::Code(keycode))
-            .is_some_and(|key| key.pressed_this_frame == true)
+            .is_some_and(|key| key.pressed_this_frame)
     }
 
     /// returns true if the key is being pressed
@@ -206,7 +205,7 @@ impl Input<'_>
     {
         self.handler.pressed_mouse_buttons
             .get(&click)
-            .is_some_and(|button| button.pressed_this_frame == true)
+            .is_some_and(|button| button.pressed_this_frame)
 
         //match state
         //{
@@ -236,11 +235,5 @@ impl Input<'_>
             Some(input) => input.released,
             None => false
         }  
-    }
-    
-    #[inline]
-    pub fn mouse_position(&self) -> baguette_math::Vec2
-    {
-        self.handler.cursor_position
     }
 }
