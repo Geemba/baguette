@@ -55,40 +55,101 @@ impl Drop for Sprite
     }
 }
 
-pub struct SpriteImpl
+impl Sprite
 {
-    pub(crate) layers: FastIndexMap<u8, Vec<SpriteInstance>>,
-    pub(crate) slice: SpriteSlice,
-    pub(crate) pivot: Option<Vec2>,
-
-    /// the texture that the sprite will use
-    pub(crate) texture: TextureData,
-}
-
-impl SpriteImpl
-{
-    /// iters the instances mutably
-    pub fn iter_all_mut(&mut self) -> indexmap::map::IterMut<u8, Vec<SpriteInstance>>
-    {
-        self.layers.iter_mut()
-    }
-
     /// iters the instances immutably
-    pub fn iter_all(&self) -> indexmap::map::Iter<u8, Vec<SpriteInstance>>
+    pub fn iter_all(&self) -> IterAllLayers
     {
-        self.layers.iter()
+        // SAFETY: data access is locked before being accessed
+        // and will be unlocked by the destructor
+        unsafe
+        {
+            let lock = self.handle.raw();
+
+            lock.lock_shared();
+
+            let sprite = &self.handle.as_ref().sprites[&self.id];
+
+            let iter = sprite.layers.iter();
+
+            IterAllLayers
+            {
+                iter,
+                lock,
+            }
+        }
     }
 
-    /// iters the layer's instances mutably
-    pub fn iter_layer_mut(&mut self, layer: u8) -> std::slice::IterMut<SpriteInstance>
+    /// iters every layers instances mutably
+    pub fn iter_all_mut(&mut self) -> IterAllLayersMut
     {
-        self.layers[&layer].iter_mut()
+        // SAFETY: data access is locked before being accessed
+        // and will be unlocked by the destructor
+        unsafe
+        {
+            let lock = self.handle.raw();
+
+            lock.lock_exclusive();
+      
+            let sprite = &mut self.handle.as_ptr().as_mut().sprites[&self.id];
+
+            let iter = sprite.layers.iter_mut();
+            
+            let binding = &mut self.handle;
+
+            IterAllLayersMut
+            {
+                iter,
+                handle: binding,
+                ctx: self.ctx.clone(),
+            }               
+        }
     }
     
-    /// iters the layer's instances immutably
-    pub fn iter_layer(&self, layer: u8) -> std::slice::Iter<SpriteInstance>
+    /// iters the instances of a layer immutably
+    pub fn iter_layer(&self, layer: u8) -> IterLayer
     {
-        self.layers[&layer].iter()
+        // SAFETY: data access is locked before being accessed
+        // and will be unlocked by the destructor
+        unsafe
+        {
+            let lock = self.handle.raw();
+
+            lock.lock_shared();
+    
+            let sprite = &self.handle.as_ref().sprites[&self.id];
+
+            let iter = sprite.layers[&layer].iter();
+
+            IterLayer
+            {
+                iter,
+                lock,
+            }
+        }
+    }
+
+    /// iters the instances of a layer mutably
+    pub fn iter_layer_mut(&mut self, layer: u8) -> IterLayerMut
+    {
+        // SAFETY: data access is locked before being accessed
+        // and will be unlocked by the destructor
+        unsafe
+        {
+            let lock = self.handle.raw();
+
+            lock.lock_exclusive();
+            
+            let sprite = &mut self.handle.as_ptr().as_mut().sprites[&self.id];
+
+            let iter = sprite.layers[&layer].iter_mut();
+
+            IterLayerMut
+            {
+                iter,
+                lock,
+            }
+        }
     }
 
     /// returns the size of the texture
@@ -219,4 +280,115 @@ pub enum SpriteSorting
     Y,
     Z,
     None
+}
+
+/// iters all the layers of the sprite immutably.
+pub struct IterAllLayers<'a>
+{
+    iter: indexmap::map::Iter<'a, u8, Vec<SpriteInstance>>,
+    lock: &'a parking_lot::RawRwLock
+}
+
+impl<'a> Iterator for IterAllLayers<'a>
+{
+    type Item = (&'a u8, &'a Vec<SpriteInstance>);
+
+    fn next(&mut self) -> Option<Self::Item>
+    {
+        self.iter.next()
+    }
+}
+
+impl<'a> Drop for IterAllLayers<'a>
+{
+    fn drop(&mut self)
+    {
+        // Safety: we lock the access when creating 
+        // an iterator so we must unlock it when dropping
+        unsafe { self.lock.unlock_shared() }
+    }
+}
+
+/// iters all the layers of the sprite.
+/// 
+/// safely unlocks the shared lock when dropped
+pub struct IterAllLayersMut<'a>
+{
+    iter: indexmap::map::IterMut<'a, u8, Vec<SpriteInstance>>,
+    ctx: ContextHandle,
+    handle: &'a mut Handle,
+}
+
+impl<'a> Iterator for IterAllLayersMut<'a>
+{
+    type Item = (&'a u8, &'a mut Vec<SpriteInstance>);
+
+    fn next(&mut self) -> Option<Self::Item>
+    {
+        self.iter.next()
+    }
+}
+
+impl<'a> Drop for IterAllLayersMut<'a>
+{
+    fn drop(&mut self)
+    {
+        self.handle.update_binding(&self.ctx.read());
+
+        // Safety: we lock the access when creating 
+        // an iterator so we must unlock it when dropping
+        unsafe { self.handle.raw().unlock_exclusive() }
+    }
+}
+
+pub struct IterLayer<'a>
+{
+    iter: std::slice::Iter<'a, SpriteInstance>,
+    lock: &'a parking_lot::RawRwLock
+}
+
+impl<'a> Iterator for IterLayer<'a>
+{
+    type Item = &'a SpriteInstance;
+
+    fn next(&mut self) -> Option<Self::Item>
+    {
+        self.iter.next()
+    }
+}
+
+impl<'a> Drop for IterLayer<'a>
+{
+    fn drop(&mut self)
+    {
+        // Safety: we lock the access when creating 
+        // an iterator so we must unlock it when dropping
+        unsafe { self.lock.unlock_shared() }
+    }
+}
+
+pub struct IterLayerMut<'a>
+{
+    iter: std::slice::IterMut<'a, SpriteInstance>,
+    lock: &'a parking_lot::RawRwLock
+}
+
+impl<'a> Iterator for IterLayerMut<'a>
+{
+    type Item = &'a mut SpriteInstance;
+
+    fn next(&mut self) -> Option<Self::Item>
+    {
+        self.iter.next()
+    }
+}
+
+impl<'a> Drop for IterLayerMut<'a>
+{
+    fn drop(&mut self)
+    {
+        // Safety: we lock the access when creating 
+        // an iterator so we must unlock it when dropping
+        unsafe { self.lock.unlock_exclusive() }
+    }
 }
