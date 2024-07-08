@@ -52,36 +52,16 @@ impl AppBuilder<UninitDynFsm>
     /// ```
     /// fn example()
     /// {
-    ///     baguette_core::new()
-    ///     .set_theme(baguette_core::WindowTheme::Dark)
-    ///     .add_state::<Test>(transitions!
-    ///     [
-    ///         |_| false => Test
-    ///     ])
+    ///     baguette::new()
+    ///         .add_state::<Test>()
     /// ...
     /// ```
     /// # panics
     /// 
     /// panics if you attempt to add the same state twice
-    pub fn add_state<St: dynamic::State + 'static>(mut self, transitions: fn() -> Vec<Transition<St>>) -> Self
+    pub fn add_state<St: dynamic::AppState + 'static>(mut self) -> Self
     {
-        let transitions = unsafe 
-        {
-            core::mem::transmute::
-            <fn() -> Vec<(fn(&mut App, &St) -> bool, StateId)>,
-             fn() -> Vec<(fn(&mut App, &DefaultDispatcher) -> bool, StateId)>
-            >(transitions)
-        };
-
-        self.fsm.add_state::<St>(transitions);
-        self
-    }
-
-    /// adds a non exiting loop to execute, use [add_state]
-    /// to specify a transition condition to another existing state
-    pub fn add_loop<St: dynamic::State + 'static>(mut self) -> Self
-    {
-        self.fsm.add_state::<St>(Vec::new);
+        self.fsm.add_state::<St>();
         self
     }
     
