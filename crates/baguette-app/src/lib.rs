@@ -14,10 +14,7 @@ pub trait Dispatcher
     fn dispatch(&mut self, app: &mut App, event: &StateEvent);
 }
 
-pub type DefaultDispatcher = Box<dyn dynamic::State>;
-
-
-impl Dispatcher for DefaultDispatcher
+impl Dispatcher for Box<dyn dynamic::AppState>
 {
     fn dispatch(&mut self, app: &mut App, event: &StateEvent)
     {
