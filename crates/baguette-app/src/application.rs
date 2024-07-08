@@ -1,5 +1,6 @@
 use input::
 {
+    baguette_math::Vec2,
     winit::
     {
         application::ApplicationHandler,
