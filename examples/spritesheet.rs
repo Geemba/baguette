@@ -3,7 +3,7 @@ use app::*;
 fn main()
 {
     baguette::new()
-        .add_loop::<TestA>()
+        .add_state::<TestA>()
         .run()
 }
 
@@ -13,7 +13,7 @@ struct TestA
     sprite: SpriteSheet,
 }
 
-impl State for TestA
+impl AppState for TestA
 {
     fn new(app: &mut App) -> Self
     {
