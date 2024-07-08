@@ -276,21 +276,20 @@ impl State {
                 // We use input_method_editor_started to manually insert CompositionStart
                 // between Commits.
                 match ime {
-                    winit::event::Ime::Enabled | winit::event::Ime::Disabled => (),
-                    winit::event::Ime::Commit(text) => {
+                    winit::event::Ime::Enabled => self.input.events.push(egui::Event::Ime(egui::ImeEvent::Enabled)),
+                    winit::event::Ime::Disabled => self.input.events.push(egui::Event::Ime(egui::ImeEvent::Disabled)),
+                    winit::event::Ime::Commit(text) =>
+                    {
                         self.input_method_editor_started = false;
                         self.input
                             .events
-                            .push(egui::Event::CompositionEnd(text.clone()));
+                            .push(egui::Event::Ime(egui::ImeEvent::Commit(text.clone())));
                     }
                     winit::event::Ime::Preedit(text, Some(_)) => {
                         if !self.input_method_editor_started {
                             self.input_method_editor_started = true;
-                            self.input.events.push(egui::Event::CompositionStart);
+                            self.input.events.push(egui::Event::Ime(egui::ImeEvent::Preedit(text.clone())));
                         }
-                        self.input
-                            .events
-                            .push(egui::Event::CompositionUpdate(text.clone()));
                     }
                     winit::event::Ime::Preedit(_, None) => {}
                 };
@@ -617,9 +616,17 @@ impl State {
             // Note: one Mac we already get horizontal scroll events when shift is down.
             self.input
                 .events
-                .push(egui::Event::Scroll(egui::vec2(delta.x + delta.y, 0.0)));
+                .push(egui::Event::MouseWheel{
+                        unit: egui::MouseWheelUnit::Point,
+                        delta: egui::vec2(delta.x + delta.y, 0.0),
+                        modifiers: egui::Modifiers {  shift: true, ..Default::default() },
+                    });
         } else {
-            self.input.events.push(egui::Event::Scroll(delta));
+            self.input.events.push(egui::Event::MouseWheel{
+                    unit: egui::MouseWheelUnit::Point,
+                    delta,
+                    modifiers: Default::default(),
+                });
         }
     }
 
@@ -1049,6 +1056,9 @@ impl State {
             }
             ViewportCommand::Screenshot => (),
             ViewportCommand::IMERect(_) => (),
+            ViewportCommand::RequestCut => (),
+            ViewportCommand::RequestCopy => (),
+            ViewportCommand::RequestPaste => (),
         }
     }
 
