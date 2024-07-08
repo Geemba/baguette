@@ -1,40 +1,38 @@
 pub use crate::*;
 
-
 #[derive(Default)]
 pub(crate) struct RenderPassCommands
 {
     sprite_pass: Option<SpritePass>,
     tilemap_pass: Option<TilemapPass>,
-    layers: FastIndexMap<u8, (bool, bool)>
 }
 
 impl RenderPassCommands
 {
-    pub fn add_sprite(&mut self, ctx: &ContextHandleInner, sprite: SpriteBuilder) -> Sprite
+    pub fn add_sprite(&mut self, ctx: ContextHandle, sprite: SpriteBuilder) -> Sprite
     {
         let sprite_pass = self
             .sprite_pass
             .get_or_insert_with(Default::default);
 
-        let sprite = sprite_pass.add_sprite(ctx, sprite);
+        
 
-        for (&layer, ..) in sprite.sprite.layers.iter()
-        {
-            match self.layers.get_mut(&layer)
-            {
-                Some((sprite, ..)) => *sprite = true,
-                None =>
-                {
-                    self.layers.insert(layer, (true, false));
-                }
-            } 
-        }
+        //for (&layer, ..) in sprite.sprite.layers.iter()
+        //{
+        //    match self.layers.get_mut(&layer)
+        //    {
+        //        Some((sprite, ..)) => *sprite = true,
+        //        None =>
+        //        {
+        //            self.layers.insert(layer, (true, false));
+        //        }
+        //    } 
+        //}
 
-        sprite
+        sprite_pass.add_sprite(ctx, sprite)
     }
 
-    pub fn add_tilemap(&mut self, ctx: &ContextHandleInner, tilemap: TilemapBuilder<FullyConstructed>)
+    pub fn add_tilemap(&mut self, ctx: &ContextHandleInner, tilemap: TilemapBuilder)
     {
         let tilemap_pass = self
             .tilemap_pass
@@ -43,17 +41,17 @@ impl RenderPassCommands
         #[allow(clippy::let_unit_value)]
         let tilemap = tilemap_pass.add(ctx, tilemap);
 
-        for (&layer, ..) in tilemap_pass.layers.iter()
-        {
-            match self.layers.get_mut(&layer)
-            {
-                Some((.., tilemap)) => *tilemap = true,
-                None =>
-                {
-                    self.layers.insert(layer, (false, true));
-                }
-            } 
-        }
+        //for (&layer, ..) in tilemap_pass.layers.iter()
+        //{
+        //    match self.layers.get_mut(&layer)
+        //    {
+        //        Some((.., tilemap)) => *tilemap = true,
+        //        None =>
+        //        {
+        //            self.layers.insert(layer, (false, true));
+        //        }
+        //    } 
+        //}
 
         tilemap
     }
@@ -65,25 +63,15 @@ impl RenderPassCommands
         camera: &'a CameraData
     )
     {
-        // draw the tilemap behind and draw the sprites on top for each layer
-        for (&layer, &(sprite_layer, tilemap_layer)) in self.layers.iter()
+        if let Some(sprite_pass) = &self.sprite_pass
         {
-            if let Some(sprite_pass) = &self.sprite_pass
-            {
-                if sprite_layer
-                {
-                    sprite_pass.draw(ctx, pass, camera, layer);
-                }
-            }
+            sprite_pass.draw(ctx, pass, camera)
+        }
 
-            if let Some(tilemap_pass) = &self.tilemap_pass
-            {
-                if tilemap_layer
-                {
-                    tilemap_pass.draw(ctx, pass, camera, layer);
-                }
-            }
-        };
+        if let Some(tilemap_pass) = &self.tilemap_pass
+        {
+            tilemap_pass.draw(ctx, pass, camera)
+        }
     }
     
     pub(crate) fn prepare(&mut self, _ctx: &ContextHandleInner)
@@ -92,5 +80,13 @@ impl RenderPassCommands
         {
             sprite_pass.prepare_instances();
         }     
+    }
+
+    pub fn resize(&mut self, ctx: &ContextHandleInner)
+    {
+        if let Some(pass) = &mut self.tilemap_pass
+        {
+            pass.resize(ctx)
+        }
     }
 }
