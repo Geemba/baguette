@@ -212,6 +212,51 @@ impl<'a> App<'a>
     {
         self.renderer.screen_size::<T>().1
     }
+    
+    pub fn get_key_down(&self, keycode: input::KeyCode) -> bool
+    {
+        self.input.get_key_down(keycode)
+    }
+    
+    pub fn get_key_holding(&self, keycode: input::KeyCode) -> bool
+    {
+        self.input.get_key_holding(keycode)
+    }
+    
+    pub fn get_key_up(&self, keycode: input::KeyCode) -> bool
+    {
+        self.input.get_key_up(keycode)
+    }
+    
+    pub fn get_mouse_button_down(&self, click: input::MouseButton) -> bool
+    {
+        self.input.get_mouse_button_down(click)
+    }
+    
+    pub fn get_mouse_button_holding(&self, click: input::MouseButton) -> bool
+    {
+        self.input.get_mouse_button_holding(click)
+    }
+    
+    pub fn get_mouse_button_up(&self, click: input::MouseButton) -> bool
+    {
+        self.input.get_mouse_button_up(click)
+    }
+    
+    pub fn horizontal_axis(&self) -> f32
+    {
+        self.input.horizontal_axis()
+    }
+    
+    pub fn vertical_axis(&self) -> f32
+    {
+        self.input.vertical_axis()
+    }
+    
+    pub fn input_axis(&self) -> Vec2
+    {
+        self.input.input_axis()
+    }
 }
 
 pub enum Fsm
