@@ -62,8 +62,13 @@ impl Default for StateEvent
     fn default() -> Self { StateEvent::Enter }
 }
 
-#[derive(PartialEq,Debug, Eq, Hash, Clone, Copy)]
-pub struct StateId(core::any::TypeId);
+impl Default for StateId
+{
+    fn default() -> Self
+    {
+        Self(TypeId::of::<Dummy>())
+    }
+}
 
 #[macro_export]
 /// changes state if the predicate returns `true`
