@@ -1,13 +1,12 @@
-use std::ops::Range;
-
 use wgpu::*;
 use crate::{*, util::TBuffer};
 
 /// describes how to load a texture, how many rows and columns it has
+#[derive(serde::Serialize, serde::Deserialize)]
 struct TextureLoadDescriptor
 {
     pub path: std::path::PathBuf,
-    pub rows: u16, pub columns: u16, 
+    pub rows: u32, pub columns: u32, 
 }
 
 /// the textures have been passed
@@ -19,9 +18,10 @@ pub struct FullyConstructed;
 /// before we build a [Tilemap]
 pub struct PartiallyConstructed;
 
+#[derive(serde::Serialize, serde::Deserialize)]
 /// Build a [`Tilemap`] with the given data.
 /// It needs `at least` one texture to be able to construct it
-pub struct TilemapBuilder<T = PartiallyConstructed>
+pub struct TilemapBuilder
 {
     /// how many images will be loaded
     /// to use with this tilemap
@@ -30,23 +30,28 @@ pub struct TilemapBuilder<T = PartiallyConstructed>
     rotation: Quat,
     scale: Vec3,
 
-    layers: FastIndexMap<u8, Vec<Tile>>,
+    layers: indexmap::IndexMap<u8, Vec<Tile>>,
 
     filter: FilterMode,
-    pxunit: f32,
-    phantom: std::marker::PhantomData<T>
+    pxunit: f32
 }
 
 impl TilemapBuilder
 {
-    /// Creates a partially constructed [`TilemapBuilder`].
-    /// 
-    /// It needs to call [`TilemapBuilder::add_texture`] before it can build a [Tilemap]
-    pub fn new() -> TilemapBuilder<PartiallyConstructed>
+    /// Creates a [`TilemapBuilder`] from a tuple composed of the `path`, `rows` and `columns`
+    pub fn with_textures(textures: &[(std::path::PathBuf, u32, u32)]) -> Self
     {
+        let maps = textures.iter().map(|(path, rows, columns)| TextureLoadDescriptor
+        {
+            path: path.clone(),
+            rows: *rows,
+            columns: *columns
+
+        }).collect();
+
         TilemapBuilder
         {
-            maps: vec![],
+            maps,
 
             position: Vec3::ZERO,
             rotation: Quat::IDENTITY,
@@ -55,28 +60,9 @@ impl TilemapBuilder
             layers: Default::default(),
             filter: FilterMode::Nearest,
             pxunit: 100.,
-            phantom: std::marker::PhantomData,
         }
     }
 
-    pub fn with_textures(textures: impl FromIterator<(std::path::PathBuf, u32, u32)>) -> TilemapBuilder<FullyConstructed>
-    {
-        TilemapBuilder
-        {
-            maps: todo!(),
-            position: todo!(),
-            rotation: todo!(),
-            scale: todo!(),
-            layers: todo!(),
-            filter: todo!(),
-            pxunit: todo!(),
-            phantom: std::marker::PhantomData,
-        }
-    }
-}
-
-impl<T> TilemapBuilder<T>
-{
     pub fn add_layer(mut self, layer: u8, tiles: impl IntoIterator<Item = Tile>) -> Self
     {
         self.layers.insert_sorted(layer, tiles.into_iter().collect());
@@ -84,8 +70,7 @@ impl<T> TilemapBuilder<T>
         self
     }
 
-    pub fn add_texture(mut self, path: impl Into<std::path::PathBuf>, rows: u16, columns: u16)
-        -> TilemapBuilder<FullyConstructed>
+    pub fn add_texture(mut self, path: impl Into<std::path::PathBuf>, rows: u32, columns: u32) -> Self
     {
         self.maps.push(TextureLoadDescriptor
         {
@@ -94,49 +79,47 @@ impl<T> TilemapBuilder<T>
             columns,
         });
 
-        self.into_fully_constructed()
+        self
     }
 
-    fn into_fully_constructed(self) -> TilemapBuilder<FullyConstructed>
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Box<bincode::ErrorKind>>
     {
-        let Self
-        {
-            maps,
-            position,
-            rotation,
-            scale,
-            layers,
-            filter,
-            pxunit,
-            ..
-            
-        } = self;
+        bincode::deserialize::<Self>(bytes)
+    }
 
-        TilemapBuilder::<FullyConstructed>
-        {
-            maps,
-            position,
-            rotation,
-            scale,
-            layers,
-            filter,
-            pxunit,
+    pub fn from_path(path: impl AsRef<std::path::Path>) -> Result<Self, Box<bincode::ErrorKind>>
+    {
+        use std::io::*;
 
-            phantom: std::marker::PhantomData,
-        }
+        let mut file = std::fs::File::open(&path)?;
+        let mut bytes = vec![];
+
+        file.read_to_end(&mut bytes)?;
+
+        Self::from_bytes(&bytes)
     }
 }
 
-impl Default for TilemapBuilder<PartiallyConstructed>
+impl<const LEN: usize> From<&'static[u8; LEN]> for TilemapBuilder
 {
-    fn default() -> Self { Self::new() }
+    fn from(bytes: &'static[u8; LEN]) -> Self
+    {
+        Self::from_bytes(bytes).expect("invalid byte sequence")
+    }
+}
+
+impl From<&'static str> for TilemapBuilder
+{
+    fn from(path: &str) -> Self
+    {
+        Self::from_path(path).expect("invalid path")
+    }
 }
 
 #[derive(Default)]
 pub(crate) struct TilemapPass
 {
     pub layers: FastIndexMap<u8, Vec<Tile>>,
-    ranges: FastHashMap<u8,Range<u32>>,
     tranform: Mat4,
     binding: Option<TilemapBinding>
 }
@@ -146,14 +129,40 @@ impl TilemapPass
     pub fn add
     (
         &mut self, ctx: &ContextHandleInner,
-        TilemapBuilder { maps, layers, filter, pxunit, .. }:
-        TilemapBuilder<FullyConstructed>
+        TilemapBuilder { maps, layers, filter, pxunit, position, rotation, scale }:
+        TilemapBuilder
     )
     {
-        let textures = maps
+        self.tranform = Mat4::from_scale_rotation_translation(scale, rotation, position);
+
+        let (textures, tilemap_data): (Vec<Texture>, Vec<TilemapData>) = maps
             .into_iter()
-            .map(|tex_desc| self::create_texture_from_path(ctx, tex_desc.path))
-            .collect::<Vec<Texture>>();
+            .map(|tex_desc|
+            {
+                let texture = self::create_texture_from_path(ctx, tex_desc.path);
+
+                let rows = tex_desc.rows as f32;
+                let columns = tex_desc.columns as f32;
+
+                const WIDTH: f32 = 0.5;
+                const HEIGHT: f32 = 0.5;
+
+                let tilemap_data =
+                [
+                    rows, columns,
+                    -WIDTH, HEIGHT,
+                    -WIDTH, -HEIGHT,
+                    WIDTH, -HEIGHT,
+                    WIDTH, HEIGHT,
+                    0., 0. // padding
+                ];
+
+                (
+                    texture,
+                    tilemap_data
+                )
+            })
+            .unzip();
 
         for (layer, mut new_tiles) in layers.into_iter()
         {
@@ -172,18 +181,6 @@ impl TilemapPass
             self.layers.insert(0, vec![Tile::default()]);
         }
 
-        let mut offset = 0;
-
-        let ranges = self.layers.iter().map(|(layer,tiles)|
-        {
-            let len = tiles.len() as _;
-            let range = (*layer, offset..offset + len);
-            offset = len;
-            range
-        }).collect::<FastHashMap<_, _>>();
-        
-        self.ranges = ranges;
-
         let instances = self.layers.values().flatten().copied().collect::<Vec<_>>();
 
         if let Some(ref mut binding) = self.binding
@@ -193,7 +190,10 @@ impl TilemapPass
         }
         else
         {
-            self.binding = Some(TilemapBinding::new(ctx, &textures, filter, &self.tranform, &instances, pxunit))
+            self.binding = Some(TilemapBinding::new
+            (
+                ctx, &textures, filter, &tilemap_data, &self.tranform, &instances, pxunit
+            ))
         };
     }
 
@@ -203,7 +203,6 @@ impl TilemapPass
         _: &ContextHandleInner,
         pass: &mut wgpu::RenderPass<'a>,
         camera: &'a CameraData,
-        layer: u8
     )
     {
         let binding = self.binding.as_ref().unwrap();
@@ -218,7 +217,15 @@ impl TilemapPass
 
         pass.set_index_buffer(binding.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
-        pass.draw_indexed(0..SPRITE_INDICES_U16.len() as _, 0, self.ranges[&layer].clone());
+        pass.draw_indexed(0..SPRITE_INDICES_U16.len() as _, 0, 0..binding.num_instances);
+    }
+
+    pub fn resize(&mut self, ctx: &ContextHandleInner)
+    {
+        if let Some(binding) = &mut self.binding
+        {
+            binding.resize_layers_texture(ctx)
+        }
     }
 }
 
@@ -232,8 +239,9 @@ struct TilemapBinding
     tex_bindgroup: BindGroup,
     matrix_bindgroup: BindGroup,
 
-    vert_buffer: TBuffer<Vertex>,
+    vert_buffer: TBuffer<Uv>,
     index_buffer: TBuffer<u16>,
+    tilemap_data_buffer: TBuffer<TilemapData>,
     instance_buffer: TBuffer<Tile>,
     matrix_buffer: TBuffer<Matrix>,
     layers_texture: TextureView,
@@ -248,6 +256,7 @@ impl TilemapBinding
         ctx: &ContextHandleInner,
         textures: &[Texture],
         filter_mode: FilterMode,
+        tilemap_data: &[TilemapData],
 
         transform: &Mat4,
         instances: &[Tile],
@@ -270,23 +279,7 @@ impl TilemapBinding
             }
         );
 
-        let layers_texture = ctx.create_texture(TextureDescriptor
-        {
-            label: None,
-            size: Extent3d
-            {
-                width: screen_width.max(1),
-                height: screen_height.max(1),
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: TextureDimension::D2,
-            format: TextureFormat::R32Uint,
-            usage: TextureUsages::STORAGE_BINDING,
-            view_formats: &[],   
-        })
-        .create_view(&Default::default());
+        let layers_texture = Self::create_layers_texture(ctx);
 
         let shader = ctx.create_shader_module(include_wgsl!("tilemap.wgsl"));
 
@@ -300,23 +293,18 @@ impl TilemapBinding
             BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         );
 
-        let Extent3d { width, height, .. } = textures[0].size();
-
-        let scale = vec2(width as _, height as _) / pxunit;
-
-        let vertices =
+        let vert_uv =
         [
-            // [vertex.x, vertex.y, u, v]
-            [-scale.x, scale.y , 0., 0.],
-            [-scale.x, -scale.y, 0., 1.],
-            [scale.x, -scale.y, 1., 1.],
-            [scale.x, scale.y, 1., 0.],
+            [0., 0.],
+            [0., 1.],
+            [1., 1.],
+            [1., 0.],
         ];
 
         let vert_buffer = ctx.create_buffer_init
         (
             Some("tilemap vertex buffer"),
-            &vertices,
+            &vert_uv,
             BufferUsages::VERTEX
         );
 
@@ -334,26 +322,54 @@ impl TilemapBinding
             BufferUsages::VERTEX
         );
 
+        let tilemap_data_buffer = ctx.create_buffer_init
+        (
+            Some("tilemap_data_buffer"),
+            tilemap_data,
+            BufferUsages::STORAGE | BufferUsages::COPY_DST
+        );
+
         let views = textures.iter()
             .map(|texture| texture.create_view(&Default::default()))
             .collect::<Vec<_>>();
 
         Self
         {
-            tex_bindgroup: Self::create_tilemap_textures_bindgroup(ctx, &views, &sampler, &layers_texture),
-            matrix_bindgroup: Self::create_matrix_bindgroup(ctx, &matrix_buffer), 
+            tex_bindgroup: Self::create_tilemap_textures_bindgroup
+            (
+                ctx, &views, &sampler, &tilemap_data_buffer, &layers_texture
+            ),
+            matrix_bindgroup: Self::create_matrix_bindgroup
+            (
+                ctx, &matrix_buffer
+            ), 
             views,
             sampler,
 
             shader,
             pipeline,
+            
             vert_buffer,
             index_buffer,
-            instance_buffer,
             matrix_buffer,
+            instance_buffer,
+            tilemap_data_buffer,
+            
             layers_texture,
-            num_instances: instances.len() as _
+            num_instances: instances.len() as _,
         }
+    }
+
+    pub fn resize_layers_texture
+    (
+        &mut self,
+        ctx: &ContextHandleInner
+    )
+    {
+        self.layers_texture = Self::create_layers_texture(ctx);
+
+        self.update_texture_bindgroup(ctx)
+        
     }
 
     /// updates the texture bindgroup
@@ -366,7 +382,7 @@ impl TilemapBinding
         // objects to update: pipeline and tex bindgroup,
         self.tex_bindgroup = Self::create_tilemap_textures_bindgroup
         (
-            ctx, &self.views, &self.sampler, &self.layers_texture
+            ctx, &self.views, &self.sampler, &self.tilemap_data_buffer, &self.layers_texture
         );
 
         self.pipeline = Self::create_pipeline(ctx, &self.shader, self.views.len())
@@ -410,15 +426,22 @@ impl TilemapBinding
                 &[
                     VertexBufferLayout
                     {
-                        array_stride: std::mem::size_of::<Vertex>() as u64,
+                        array_stride: std::mem::size_of::<Uv>() as u64,
                         step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &vertex_attr_array![0 => Float32x2, 1 => Float32x2],
+                        attributes: &vertex_attr_array![0 => Float32, 1 => Float32],
                     },
                     VertexBufferLayout
                     {
                         array_stride: std::mem::size_of::<Tile>() as u64,
-                        step_mode: wgpu::VertexStepMode::Instance,
-                        attributes: &vertex_attr_array![2 => Float32x2, 3 => Uint32, 4 => Uint32]
+                        step_mode: VertexStepMode::Instance,
+                        attributes: &vertex_attr_array!
+                        [
+                            2 => Float32x2,
+                            3 => Uint32,
+                            4 => Uint32,
+                            5 => Uint32,
+                            6 => Float32
+                        ]
                     }
                 ],
                 compilation_options: Default::default(),
@@ -454,12 +477,37 @@ impl TilemapBinding
         })
     }
 
+    fn create_layers_texture
+    (
+        ctx: &ContextHandleInner
+
+    ) -> TextureView
+    {
+        let (width, height) = ctx.screen.size();
+
+        ctx.create_texture
+        (
+            TextureDescriptor
+            {
+                label: Some("2d layers texture"),
+                size: Extent3d { width, height, ..Default::default() },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: TextureDimension::D2,
+                format: TextureFormat::R32Float,
+                usage: TextureUsages::STORAGE_BINDING,
+                view_formats: &[],
+            }
+        ).create_view(&Default::default())
+    }
+
     fn create_tilemap_textures_bindgroup
     (
         ctx: &ContextHandleInner,
         views: &[TextureView],
         sampler: &Sampler,
 
+        tilemap_data: &TBuffer<TilemapData>,
         layer_texture: &TextureView,
         
     ) -> BindGroup
@@ -489,6 +537,11 @@ impl TilemapBinding
                 {
                     binding: 2,
                     resource: BindingResource::TextureView(layer_texture)
+                },
+                BindGroupEntry
+                {
+                    binding: 3,
+                    resource: tilemap_data.as_entire_binding()
                 }
             ]
         })
@@ -552,10 +605,22 @@ impl TilemapBinding
                     ty: wgpu::BindingType::StorageTexture
                     {
                         access: wgpu::StorageTextureAccess::ReadWrite,
-                        format: wgpu::TextureFormat::R32Uint,
+                        format: wgpu::TextureFormat::R32Float,
                         view_dimension: wgpu::TextureViewDimension::D2,
                     },
                     count: None
+                },
+                BindGroupLayoutEntry
+                {
+                    binding: 3,
+                    visibility: ShaderStages::VERTEX,
+                    ty: BindingType::Buffer
+                    {
+                        ty: BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None
+                    },
+                    count: None,
                 }
             ]
         })
@@ -589,7 +654,7 @@ fn create_texture_from_path
 (
     ctx: &ContextHandleInner, source_path: impl AsRef<std::path::Path>,
 )
--> Texture    
+-> Texture
 {
     use image::GenericImageView;
 
@@ -644,56 +709,32 @@ fn create_texture_from_path
         size
     );
 
-
     texture
 }
 
-///// copies a slice of [Tile] to a Vec of [RawTile]
-//fn tiles_to_raw_tiles(instances: &[Tile]) -> Vec<RawTile>
-//{
-//    let instances: Vec<RawTile> = instances.iter().map
-//    (
-//        |Tile { pos, idx, texture_idx: bind_idx }| RawTile 
-//        {
-//            pos: pos.to_array(),
-//            idx: *idx,
-//            bind_idx: *bind_idx, 
-//        }
-//    )
-//    .collect();
-//
-//    instances
-//}
-
-type Vertex = [f32; 4];
+/// every vertex 
+type Uv = [f32; 2];
 type Matrix = [[f32; 4]; 4];
+
+/// the first 2 floats contain `rows` and `columns`, the rest is padding
+type TilemapData = [f32; 12];
 
 #[repr(C)]
 #[derive(Default, Clone, Copy)]
 #[derive(Debug)]
+#[derive(serde::Serialize,serde::Deserialize)]
 pub struct Tile
 {
     /// the position inside the tilemap
     pub pos: Vec2,
     /// the index of tile inside the tilemap texture
-    pub idx: u32,
+    pub row: u32,
+    pub column: u32,
     /// the index of the tilemap texture,
     /// 
     /// the tilemap textures are indexed by the order you added them
     pub texture_idx: u32,
+    pub layer: f32
 }
 
 unsafe impl bytemuck::NoUninit for Tile{}
-
-//impl From<Tile> for RawTile
-//{
-//    fn from(Tile { pos, idx, texture_idx: bind_idx }: Tile) -> Self
-//    {
-//        Self
-//        {
-//            pos: pos.to_array(),
-//            idx,
-//            bind_idx,
-//        }
-//    }
-//}
