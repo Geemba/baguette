@@ -1,8 +1,7 @@
-use std::{marker::PhantomData, ops::{Deref, DerefMut}, ptr::NonNull};
+use std::ops::{Deref, DerefMut};
+use std::slice;
 
 use crate::*;
-
-use self::sprite::SpriteImpl;
 
 pub struct SpriteSheet
 {
@@ -30,7 +29,7 @@ impl DerefMut for SpriteSheet
 
 impl SpriteSheet
 {
-    pub fn new(renderer: &mut crate::Renderer, loader: SpriteSheetBuilder<ReadyToBuild>) -> Self
+    pub fn new(renderer: &mut crate::Renderer, loader: SpriteSheetBuilder) -> Self
     {
         Self
         {
@@ -41,74 +40,55 @@ impl SpriteSheet
 
     pub fn iter_layer(&mut self, layer: u8) -> Iter
     {
+        let other = self.sections[&layer].iter();
+
+        let iter = self.inner.iter_layer(layer).zip(other);
+
         Iter
         {
-            sections: &self.sections[&layer],
-            idx: 0,
-            sprite: &self.inner.sprite,
-            layer,
+            iter
         }
     }
 
     pub fn iter_layer_mut(&mut self, layer: u8) -> IterMut
     {
+        let other = self.sections[&layer].iter_mut();
+
+        let iter = self.inner.iter_layer_mut(layer).zip(other);
+
         IterMut
         {
-            sections: (&mut self.sections[&layer]).into(),
-            idx: 0,
-            sprite: (&mut *self.inner.sprite).into(),
-            _phantom: PhantomData,
-            layer,
+            iter
         }
     }
 }
 
 pub struct Iter<'a>
 {
-    sections: &'a Vec<SliceSection>,
-    sprite: &'a SpriteImpl,
-    layer: u8,
-    idx: usize
+    iter: std::iter::Zip
+    <
+        sprite::IterLayer<'a>,
+        slice::Iter<'a, SliceSection>
+    >,
 }
 
 impl<'a> Iterator for Iter<'a>
 {
     type Item = (&'a SpriteInstance, &'a SliceSection);
-
+    
     fn next(&mut self) -> Option<Self::Item>
     {
-        let item = match self.sprite.layers[&self.layer].get(self.idx)
-        {
-            Some(instance) => Some((instance, &self.sections[self.idx])),
-            None => None,
-        };
-
-        self.idx += 1;
-        item
+        self.iter.next()
     }
 }
 
 pub struct IterMut<'a>
 {
-    sections: NonNull<Vec<SliceSection>>,
-    sprite: NonNull<SpriteImpl>,
-    idx: usize,
-    layer: u8,
-    _phantom: PhantomData<&'a()>
-}
-
-impl<'a> Drop for IterMut<'a>
-{
-    fn drop(&mut self)
-    {
-        let instances = unsafe { &mut self.sprite.as_mut().layers[&self.layer] };
-        let sections = unsafe { self.sections.as_mut() };
-
-        for (i, instance) in instances.iter_mut().enumerate()
-        {
-            instance.uv_idx = sections[i].index
-        }
-    }
+    iter: std::iter::Zip
+    <
+        sprite::IterLayerMut<'a>,
+        slice::IterMut<'a, SliceSection>
+    >,
 }
 
 impl<'a> Iterator for IterMut<'a>
@@ -117,29 +97,15 @@ impl<'a> Iterator for IterMut<'a>
 
     fn next(&mut self) -> Option<Self::Item>
     {
-        let instances = unsafe { &mut self.sprite.as_mut().layers[&self.layer] };
-        let sections = unsafe { self.sections.as_mut() };
-
-        let item = match instances.get_mut(self.idx)
-        {
-            Some(instance) => Some((instance, &mut sections[self.idx])),
-            None => None,
-        };
-        
-        self.idx += 1;
-        item
+        self.iter.next()
     }
 }
 
-pub struct LayersNotSet;
-pub struct ReadyToBuild;
-
 /// describes the type of sprite you want to create
-pub struct SpriteSheetBuilder<T = LayersNotSet>
+pub struct SpriteSheetBuilder
 {
     inner: SpriteBuilder,
     sections: FastIndexMap<u8, Vec<SliceSection>>,
-    phantom: std::marker::PhantomData<T>
 }
 
 impl SpriteSheetBuilder
@@ -159,7 +125,6 @@ impl SpriteSheetBuilder
         {
             inner,
             sections: FastIndexMap::default(),
-            phantom: PhantomData,
         }
     }
 
@@ -168,7 +133,7 @@ impl SpriteSheetBuilder
         mut self,
         instances: impl IntoIterator<Item = (SpriteInstance, SheetSlices<'a>)>
     )
-    -> SpriteSheetBuilder<ReadyToBuild>
+    -> Self
     {
         let (instances, slices): (Vec<_>, Vec<_>) = instances.into_iter().unzip();
 
@@ -198,11 +163,10 @@ impl SpriteSheetBuilder
             }])
         };
 
-        SpriteSheetBuilder
+        Self
         {
             inner: self.inner,
             sections: self.sections,
-            phantom: PhantomData,
         }
     }
 }
