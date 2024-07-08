@@ -1,4 +1,6 @@
-use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard};
+use std::sync::Arc;
+
+use parking_lot::{RwLock, RwLockReadGuard};
 
 use crate::*;
 use input::winit::{event_loop::ActiveEventLoop, window::{Window, WindowAttributes}};
@@ -15,6 +17,11 @@ impl<'a> From<&'a mut RendererData> for Renderer<'a>
 
 impl Renderer<'_>
 {
+    pub(crate) fn ctx(&self) -> &ContextHandle
+    {
+        &self.0.ctx
+    }
+
     pub fn ui(&self) -> ui::Ui
     {
         (&self.0.ui).into()
@@ -26,28 +33,33 @@ impl Renderer<'_>
         self.0.camera.clone()
     }
 
-    /// loads a sprite to be rendered,
-    /// uses a builder type to describe how the sprite will be loaded
+    pub fn add_sprite_renderer(&mut self)
+    {
+        println!("renderer added");
+        self.0.passes
+            .get_or_insert_with(Default::default);        
+    }
+    
+    /// loads a sprite from a [SpriteBuilder] to be rendered,
     pub fn add_sprite(&mut self, sprite: SpriteBuilder) -> Sprite
     {
-        let ctx = self.0.ctx.read().expect("aw heell naww");
+        let ctx = self.ctx().clone();
 
         let renderpasses = self.0.passes
             .get_or_insert_with(Default::default);
 
-
-        renderpasses.add_sprite(&ctx, sprite)
+        renderpasses.add_sprite(ctx, sprite)
 
     }
 
-    pub fn add_tilemap(&mut self, tilemap: TilemapBuilder<FullyConstructed>)
+    pub fn add_tilemap(&mut self, tilemap: impl Into<TilemapBuilder>)
     {
-        let ctx = self.0.ctx.read().expect("aw heell naww");
+        let ctx = self.0.ctx.read();
 
         let renderpasses = self.0.passes
             .get_or_insert_with(Default::default);
 
-        renderpasses.add_tilemap(&ctx, tilemap)
+        renderpasses.add_tilemap(&ctx, tilemap.into())
     }
 
     /// returns the screen size in the format you decide,
@@ -60,7 +72,7 @@ impl Renderer<'_>
     {
         use input::winit::dpi::Pixel;
 
-        let (width, heigth) = self.0.ctx.read().unwrap().screen.size();
+        let (width, heigth) = self.0.ctx.read().screen.size();
         (width.cast(), heigth.cast())
     }
 }
@@ -93,19 +105,29 @@ impl RendererData
 
     pub fn resize(&mut self, (width, height): (u32,u32))
     {
-        let mut ctx_write = self.ctx.0.write().expect("aonna it crashed");
+
+        let mut ctx_write = self.ctx.0.write();
         ctx_write.screen.config.width = width;
         ctx_write.screen.config.height = height;
+
+        drop(ctx_write);
+
+        let ctx_read = self.ctx.0.read();      
 
         let (physical_width, physical_height) = 
         (
             width as f32, height as f32
         );
-        
-        self.ui.update_screen_size(width, height);
-        self.output.update_texture(&ctx_write.device, width, height);
 
-        drop(ctx_write);
+        self.ui.update_screen_size(width, height);
+        self.output.update_texture(&ctx_read.device, width, height);
+
+        if let Some(passes) = &mut self.passes
+        {
+            passes.resize(&ctx_read)
+        }
+
+        drop(ctx_read);
 
         // resize camera to match new screen size
         self.camera().resize(physical_width / physical_height);
@@ -124,11 +146,9 @@ impl RendererData
         window_target: &input::winit::event_loop::ActiveEventLoop,
     ) -> Result<(), wgpu::SurfaceError>
     {
-        let ctx = self.ctx
-            .read()
-            .expect("ctx failed to retrieve while rendering");
+        let ctx = self.ctx.read();
 
-        self.camera.data.borrow_mut().update(&ctx);
+            self.camera.data.borrow_mut().update(&ctx);
 
         let camera = &self.camera.data.borrow();
 
@@ -195,9 +215,7 @@ impl RendererData
     /// this function will return an error if the surface is not able to be retrieved.
     pub fn render_plain_color(&mut self, r:f64,g:f64,b:f64) -> Result<(), wgpu::SurfaceError>
     {
-        let ctx_read = self.ctx
-            .read()
-            .expect("ctx failed to retrieve while rendering");
+        let ctx_read = self.ctx.read();
 
         //CameraData::update_all();
         self.camera.data.borrow_mut().update(&ctx_read);
@@ -242,7 +260,7 @@ impl RendererData
 
     pub fn suspend(&mut self)
     {
-        self.ctx.0.write().unwrap().screen.destroy();
+        self.ctx.0.write().screen.destroy();
     }
 
     /// required to be called for any change to [wgpu::Device] to be effective.
@@ -251,7 +269,7 @@ impl RendererData
     ///
     fn update_surface(&mut self)
     {
-        let ctx_read = self.ctx.read().unwrap();
+        let ctx_read = self.ctx.read();
         ctx_read.screen.surface
             .as_ref()
             .unwrap()
@@ -265,7 +283,7 @@ impl RendererData
     /// if any of these limits are exceeded, functions may panic.
     pub fn limits(&self) -> wgpu::Limits
     {
-        self.ctx.0.read().unwrap().device.limits()
+        self.ctx.0.read().device.limits()
     }
 
     pub fn begin_egui_frame(&mut self)
@@ -287,19 +305,21 @@ impl RendererData
     {   
         use wgpu::*;
 
+        let backends = match cfg!(target_os = "windows")
+        {
+            true => Backends::VULKAN,
+            false => Backends::PRIMARY
+        };
+
         let instance = Instance::new(InstanceDescriptor
         {
-            backends: match cfg!(target_os = "windows")
-            {
-                true => Backends::DX12,
-                false => Backends::PRIMARY
-            },
+            backends,
             ..Default::default()
         });
- 
+
         let adapter = pollster::block_on(instance.request_adapter(&RequestAdapterOptions
         {
-            power_preference:PowerPreference::default(),
+            power_preference: PowerPreference::default(),
             force_fallback_adapter: false,
             compatible_surface: None
         })).expect("bruh failed to find an appropriate adapter");
@@ -321,7 +341,7 @@ impl RendererData
             // width and height of the rendered area in pixels
             let (width,height) = (1,1);
 
-            // scalefactor of the screen we are rendering inside
+            // scalefactor of the screen we are rendering inside of
             let scale = 1.;
 
         let output = FrameOutput::new(&device,width,height);
@@ -361,14 +381,16 @@ impl RendererData
     ///
     /// panics if the surface is not capable of being created.
     pub fn resume(&mut self, event_loop: &ActiveEventLoop)
-    {    
+    {
+        use wgpu::*;
+
         let window = Arc::new
         (
             event_loop.create_window(self.w_attributes.clone())
             .expect("failed to create window")
         );
 
-        let surface = self.ctx.read().unwrap().instance.create_surface(window.clone())
+        let surface = self.ctx.read().instance.create_surface(window.clone())
             .expect("failed to create surface on window");
         
         self.window = Some(window);
@@ -380,22 +402,28 @@ impl RendererData
             .find(|f| f.is_srgb())
             .unwrap_or(&surface_caps.formats[0]);
 
-        let config = wgpu::SurfaceConfiguration
+        let present_mode = PresentMode::Fifo;
+
+        let config = SurfaceConfiguration
         {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: TextureUsages::RENDER_ATTACHMENT,
             format: *surface_format,
-            width: 1,
-            height: 1,
-            present_mode: wgpu::PresentMode::Fifo,
-            alpha_mode: wgpu::CompositeAlphaMode::Auto,
+            width: 1, height: 1, present_mode,
+            alpha_mode: CompositeAlphaMode::Auto,
             view_formats: vec![],
-            desired_maximum_frame_latency: 2,
+            desired_maximum_frame_latency: 0,
         };
 
         ////
 
-        self.ctx.0.write().unwrap().screen = Screen::new(surface, config);
+        self.ctx.0.write().screen = Screen::new(surface, config);
         self.update_surface()
+    }
+
+    /// returns the backend of the adapter
+    fn backend(&self) -> wgpu::Backend
+    {
+        self.adapter.get_info().backend
     }
 }
 
@@ -680,11 +708,16 @@ pub struct ContextHandle(Arc<RwLock<ContextHandleInner>>);
 
 impl ContextHandle
 {
-    pub fn read(&self)
-        -> Result<RwLockReadGuard<ContextHandleInner>,
-        PoisonError<RwLockReadGuard<ContextHandleInner>>>
+    pub fn read(&self) -> RwLockReadGuard<ContextHandleInner>
     {
-        self.0.read()
+        match cfg!(debug_assertions)
+        {
+            // panic on timeout on debug
+            true => self.0.try_read_for(std::time::Duration::from_secs(1))
+                .expect("renderer context timeout reached"),
+
+            false => self.0.read()
+        }
     }
 }
 
