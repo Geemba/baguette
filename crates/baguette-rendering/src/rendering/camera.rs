@@ -110,7 +110,7 @@ impl CameraData
         self.projection.rebuild_projection(aspect)        
     }
 
-    pub(crate) fn update(&mut self, ctx: &std::sync::RwLockReadGuard<'_, renderer::ContextHandleInner>)
+    pub(crate) fn update(&mut self, ctx: &parking_lot::RwLockReadGuard<'_, renderer::ContextHandleInner>)
     {
         // we rebuild the projection and pass it to the gpu as array
         let uniform = self.projection.screen_space_matrix().to_cols_array_2d();
