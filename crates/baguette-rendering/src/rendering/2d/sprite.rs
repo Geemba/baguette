@@ -1,40 +1,33 @@
-use std::ptr::NonNull;
 use crate::*;
 
-type Owner = NonNull<Vec<NonNull<SpriteImpl>>>;
+use parking_lot::lock_api::*;
 
-#[must_use]
-/// runtime instance of a sprite, contains both the texture and all the instances
+#[must_use = "sprite will be immediately dropped"]
+/// handle to a runtime instance of a sprite, contains both the texture
+/// and all the instances that use this specific texture
 pub struct Sprite
 {
-    pub(crate) sprite: Box<SpriteImpl>,
-    ///// this is used only on drop to remove the reference to this [Sprite]
-    pub(crate) sprites: Owner
+    id: u16,
+    handle: Handle,
+    ctx: ContextHandle
 }
 
 impl Sprite
 {
-    pub fn new (renderer: &mut crate::Renderer, builder: crate::SpriteBuilder) -> Self
+    pub fn new(renderer: &mut crate::Renderer, builder: crate::SpriteBuilder) -> Self
     {
         renderer.add_sprite(builder)
     }
-}
 
-impl std::ops::Deref for Sprite
-{
-    type Target = SpriteImpl;
+    pub(crate) fn _crate_impl_new
+    (
+        id: u16,
+        handle: Handle,
+        ctx: ContextHandle
 
-    fn deref(&self) -> &Self::Target
+    ) -> Self
     {
-        self.sprite.as_ref()
-    }
-}
-
-impl std::ops::DerefMut for Sprite
-{
-    fn deref_mut(&mut self) -> &mut Self::Target
-    {
-        self.sprite.as_mut()
+        Self { id, handle, ctx }
     }
 }
 
@@ -42,15 +35,16 @@ impl Drop for Sprite
 {
     fn drop(&mut self)
     {
-        // remove the reference to this sprite
-        // from the spritepass as it's about to be dropped.
-        unsafe 
+        println!("drop sprite");
+
+        let mut write_guard = self.handle.write();
+        
+        // if this is none it means the spritepass has been dropped and 
+        // it handled deallocation already
+        if write_guard.sprites.swap_remove(&self.id).is_some()
         {
-            self.sprites.as_mut()
-            .retain
-            (
-                |sprite| (&mut *self.sprite) as *mut SpriteImpl == sprite.as_ptr()
-            )
+            drop(write_guard);
+            self.handle.update_binding(&self.ctx.read())
         }
     }
 }
@@ -155,21 +149,8 @@ impl Sprite
     /// returns the size of the texture
     pub fn size(&self) -> baguette_math::Vec2
     {
-        self.texture.size()
+        self.handle.read().sprites[&self.id].size()
     }
-
-    //pub fn add_instances(&mut self, ctx: &crate::ContextHandleData, mut new_instances: Vec<SpriteInstance>)
-    //{
-    //    // we add the new instances
-    //    self.instances.append(&mut new_instances);         
-
-    //    // .. then recreate the buffer to update it with the added instance
-    //    let data: Vec<SpriteInstanceRaw> = self.instances.iter()
-    //        .map(|f| f.as_raw())
-    //        .collect();
-
-    //    ctx.write_buffer(&self.binding.instance_buffer.0, &data)
-    //}
 }
 
 #[derive(Clone, Debug)]
@@ -179,7 +160,7 @@ pub struct SpriteInstance
     pub translation: Vec3,
     pub orientation: Quat,
     pub scale: Vec3,
-    /// indicates the index to which tile is being rendered if the sprite is sliced,
+    /// if the sprite is sliced it indicates the index of the tile being rendered,
     /// if not, it won't do anything
     pub uv_idx: u32,
 }
