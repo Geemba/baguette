@@ -1,14 +1,15 @@
 use wgpu::{*, util::*};
 use super::*;
+
 use bytemuck::NoUninit;
+pub use bytemuck;
 
 /// a [wgpu::Buffer] with type safety on top of it
-pub struct TBuffer<T: bytemuck::NoUninit>
+pub(crate) struct TBuffer<T: bytemuck::NoUninit>
 (
     wgpu::Buffer,
     std::marker::PhantomData<T>
 );
-
 
 impl<T: NoUninit> AsRef<wgpu::Buffer> for TBuffer<T>
 {
@@ -61,7 +62,7 @@ impl ContextHandleInner
         device(self).create_bind_group(&desc)
     }
     #[inline]
-    pub fn create_buffer_init<T: NoUninit>
+    pub(crate) fn create_buffer_init<T: NoUninit>
     (
         &self,
         label: Option<&str>,
@@ -79,7 +80,7 @@ impl ContextHandleInner
         device(self).create_buffer_init(&descr).into()
     }
     #[inline]
-    pub fn create_buffer<T: NoUninit>
+    pub(crate) fn create_buffer<T: NoUninit>
     (
         &self,
         label: Option<&str>,
@@ -104,7 +105,7 @@ impl ContextHandleInner
     /// As such, the write is not immediately submitted, and instead enqueued
     /// internally to happen at the start of the next `submit()` call.
     #[inline]
-    pub fn write_entire_buffer<T: NoUninit>(&self, buffer: &TBuffer<T>, data: &[T])
+    pub(crate) fn write_entire_buffer<T: NoUninit>(&self, buffer: &TBuffer<T>, data: &[T])
     {
         queue(self).write_buffer(buffer, 0, bytemuck::cast_slice(data));
     }
