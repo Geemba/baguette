@@ -477,31 +477,6 @@ impl SpriteBinding
         }
     }
 
-    pub(crate) fn update
-    (
-        &mut self,
-        ctx: &ContextHandleInner,
-
-        textures: &[&wgpu::TextureView],
-        samplers: &[&wgpu::Sampler],
-        sprite_slices: &[SpriteSlice],
-    )
-    {
-        ctx.write_entire_buffer(&self.sprite_slices_storage_buffer, sprite_slices);
-
-        self.bindgroup = Self::create_bindgroup
-        (
-            ctx,
-            textures,
-            samplers,
-            &self.sprite_slices_storage_buffer,
-            sprite_slices,
-            &self.uv_uniform
-        );
-
-        self.render_pipeline = Self::create_pipeline(ctx, &self.shader, textures.len())
-    }
-
     fn create_bindgroup
     (
         ctx: &ContextHandleInner,
