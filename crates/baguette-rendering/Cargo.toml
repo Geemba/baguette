@@ -1,17 +1,20 @@
 [package]
 name = "baguette-rendering"
-version = "0.2.0"
+version.workspace = true
 edition = "2021"
 license.workspace = true
 
 [dependencies]
-wgpu = "0.20"
+wgpu = { version = "0.20.1", features = ["serde"]}
+serde = { workspace = true }
 pollster = "*"
-bytemuck = { version = "*", features = [ "derive" ]}
+bincode = "*"
+bytemuck = { version = "*", features = ["derive"]}
 image = { version = "*", features = ["png", "jpeg"]}
 baguette-math = { workspace = true }
 input = { workspace = true }
-indexmap = "*"
+indexmap = { version = "*", features = ["serde"]}
+parking_lot = { version = "*", features = ["arc_lock"]}
 
-egui = { version = "*", features = ["bytemuck",] }
+egui = { version = "*", features = ["bytemuck"]}
 type-map = "*"
