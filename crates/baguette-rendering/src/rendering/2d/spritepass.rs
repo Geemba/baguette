@@ -18,15 +18,6 @@ pub(crate) struct SpritePass
     instances: Vec<SpriteInstanceRaw>,
 }
 
-impl Drop for SpritePass
-{
-    fn drop(&mut self)
-    {
-        let mut lock = self.sprites.write();
-        lock.sprites.clear();
-    }
-}
-
 impl SpritePass
 {
     pub fn add_sprite(&mut self, ctx: ContextHandle, builder: SpriteBuilder) -> Sprite
