@@ -292,9 +292,6 @@ impl RendererData
     }
 }
 
-/// initialization
-impl RendererData
-{
     /// Creates a new [`Renderer`].
     ///
     /// # Panics
