@@ -14,7 +14,7 @@ pub struct Sprite
 
 impl Sprite
 {
-    pub fn new(renderer: &mut crate::Renderer, builder: crate::SpriteBuilder) -> Self
+    pub fn new(renderer: &mut Renderer, builder: SpriteBuilder) -> Self
     {
         renderer.add_sprite(builder)
     }
