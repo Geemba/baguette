@@ -84,7 +84,9 @@ impl ApplicationHandler for AppHandler
                 self.data.input.flush_released_keys()
             }
             
+            // do cleanup on exiting, not here,
             WindowEvent::CloseRequested => target.exit(),
+            
             WindowEvent::Resized(new_size) if new_size.width > 0 && new_size.height > 0 =>
             {
                 self.data.renderer.resize(new_size.into())
@@ -102,6 +104,11 @@ impl ApplicationHandler for AppHandler
         self.data.renderer.suspend()
     }
     
+    fn exiting(&mut self, _event_loop: &ActiveEventLoop)
+    {
+        self.fsm.clear()
+    }
+
     fn memory_warning(&mut self, target: &ActiveEventLoop)
     {
         target.exit()
@@ -284,5 +291,10 @@ impl Fsm
         {
             fsm.update(app)
         }
+    }
+    
+    fn clear(&mut self)
+    {
+        *self = Self::Dummy
     }
 }
