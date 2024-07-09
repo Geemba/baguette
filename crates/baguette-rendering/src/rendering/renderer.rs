@@ -290,7 +290,6 @@ impl RendererData
     {
         self.ui.begin_egui_frame(self.window.as_ref().unwrap())
     }
-}
 
     /// Creates a new [`Renderer`].
     ///
@@ -408,7 +407,7 @@ impl RendererData
             width: 1, height: 1, present_mode,
             alpha_mode: CompositeAlphaMode::Auto,
             view_formats: vec![],
-            desired_maximum_frame_latency: 0,
+            desired_maximum_frame_latency: 2,
         };
 
         ////
