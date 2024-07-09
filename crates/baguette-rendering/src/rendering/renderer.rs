@@ -154,7 +154,7 @@ impl RendererData
 
         let output = ctx.screen.surface
             .as_ref()
-            .expect("how are we rendering without a surface")
+            .expect("unexpected render call without an active surface")
             .get_current_texture()?;
 
         let frame_output_view = &output.texture.create_view(&Default::default());
