@@ -74,6 +74,7 @@ impl Renderer<'_>
 pub struct RendererData
 {
     ctx: ContextHandle,
+    clear_color: wgpu::Color,
 
     /// the window that the renderer draws on
     pub window: Option<Arc<Window>>,
@@ -163,13 +164,7 @@ impl RendererData
                     resolve_target: None,
                     ops: wgpu::Operations
                     {
-                        load: wgpu::LoadOp::Clear(wgpu::Color
-                        {
-                            r: 0.13,
-                            g: 0.31,
-                            b: 0.85,
-                            a: 1.0
-                        }),
+                        load: wgpu::LoadOp::Clear(self.clear_color),
                         store: wgpu::StoreOp::Store
                     }
                 })],
@@ -290,13 +285,13 @@ impl RendererData
     ///
     /// panics if an appropriate adapter or device is not avaiable.
     #[must_use]
-    pub fn new(w_attributes: WindowAttributes) -> Self
+    pub fn new(w_attributes: WindowAttributes, color: Option<(f64,f64,f64)>) -> Self
     {   
         use wgpu::*;
 
         let backends = match cfg!(target_os = "windows")
         {
-            true => Backends::VULKAN,
+            true => Backends::DX12,
             false => Backends::PRIMARY
         };
 
@@ -372,6 +367,21 @@ impl RendererData
 
         let ctx = ContextHandle(RwLock::new(ctx_data).into());
 
+        let clear_color = color.map(|(r,g,b)| wgpu::Color
+        {
+            r,
+            g,
+            b,
+            a: 1.0
+        }
+        ).unwrap_or(wgpu::Color
+        {
+            r: 0.13,
+            g: 0.31,
+            b: 0.85,
+            a: 1.0
+        });
+
         Self
         {
             adapter,
@@ -384,6 +394,7 @@ impl RendererData
             camera,
             output,
             ctx,
+            clear_color,
         }
     }
 
