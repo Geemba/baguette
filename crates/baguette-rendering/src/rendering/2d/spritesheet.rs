@@ -50,15 +50,15 @@ impl SpriteSheet
         }
     }
 
+    /// iters the layer mutably.
+    /// 
+    /// [`Self::iter_layer`] is faster if you need to iter immutably 
     pub fn iter_layer_mut(&mut self, layer: u8) -> IterMut
     {
-        let other = self.sections[&layer].iter_mut();
-
-        let iter = self.inner.iter_layer_mut(layer).zip(other);
-
         IterMut
         {
-            iter
+            layers_iter: self.inner.iter_layer_mut(layer),
+            slices_iter: self.sections[&layer].iter_mut(),
         }
     }
 }
@@ -84,20 +84,24 @@ impl<'a> Iterator for Iter<'a>
 
 pub struct IterMut<'a>
 {
-    iter: std::iter::Zip
-    <
-        sprite::IterLayerMut<'a>,
-        slice::IterMut<'a, SliceSection>
-    >,
+    layers_iter: sprite::IterLayerMut<'a>,
+    slices_iter: slice::IterMut<'a, SliceSection>
 }
 
 impl<'a> Iterator for IterMut<'a>
 {
-    type Item = (&'a mut SpriteInstance, &'a mut SliceSection);
+    type Item = SpriteSheetInstance<'a>;
 
     fn next(&mut self) -> Option<Self::Item>
     {
-        self.iter.next()
+        Some
+        (
+            SpriteSheetInstance
+            (
+                self.layers_iter.next()?,
+                self.slices_iter.next()?
+            )
+        )
     }
 }
 
@@ -127,7 +131,19 @@ impl SpriteSheetBuilder
             sections: FastIndexMap::default(),
         }
     }
-
+    /// Example
+    /// 
+    /// ```
+    ///     SpriteSheetBuilder::new
+    ///     (
+    ///         "assets/green dude sheet.png",
+    ///         6, 5
+    ///     )
+    ///     .set_layer::<0>
+    ///     (
+    ///         [(Default::default(), SheetSlices::Range(19..22))]
+    ///     )
+    /// ```
     pub fn set_layer<'a, const LAYER: u8>
     (
         mut self,
@@ -185,7 +201,9 @@ pub struct SliceSection
     /// contains the specific indices to display, if this is [None]
     /// then all the sections of the [SpriteSheet] are avaiable for display
     indices: Option<Tiles>,
-    /// the index into the uv buffer for this section
+    /// the index into the uv buffer for this section,
+    /// 
+    /// this needs to be passed to the [SpriteInstance]'s uv_index to change it's uv value 
     index: u32
 }
 
@@ -210,8 +228,8 @@ impl SliceSection
     /// sets the index of the sheet to render with the provided row and column value
     pub fn set(&mut self, row: u32, column: u32)
     {
-        // we clamp the max value possible to the length of the uv buffer, whose value is
-        // determined by (rows * columns -1 )
+        // we clamp the max value possible to the length of the uv buffer, the value is
+        // clamped to rows * columns -1
         self.index = u32::min
         (
             column * self.rows + row,
@@ -223,7 +241,6 @@ impl SliceSection
     /// or the first one if it exceeds the maximum avaiable index
     pub fn next_or_first(&mut self)
     {
-        println!("{}", self.index);
         self.index = match self.indices
         {
             Some(ref mut tiles) => match tiles.indices.get(tiles.index + 1)
@@ -408,5 +425,56 @@ impl SheetSlices<'_>
             SheetSlices::RangeIn(val) => val.into_indices(rows, columns),
             SheetSlices::All => None,
         }
+    }
+}
+
+pub struct SpriteSheetInstance<'a>
+(
+    &'a mut SpriteInstance,
+    &'a mut SliceSection
+);
+
+impl SpriteSheetInstance<'_>
+{
+    pub fn next_or_first(&mut self)
+    {
+        self.1.next_or_first()
+    }
+    
+    pub fn set(&mut self, row: u32, column: u32)
+    {
+        self.1.set(row, column)
+    }
+    
+    pub fn set_indices(&mut self, items: impl IntoIndices)
+    {
+        self.1.set_indices(items)
+    }
+}
+
+impl<'a> Deref for SpriteSheetInstance<'a>
+{
+    type Target = &'a mut SpriteInstance;
+
+    fn deref(&self) -> &Self::Target
+    {
+        &self.0
+    }
+}
+
+impl DerefMut for SpriteSheetInstance<'_>
+{
+    fn deref_mut(&mut self) -> &mut Self::Target
+    {
+        &mut self.0
+    }
+}
+
+impl Drop for SpriteSheetInstance<'_>
+{
+    fn drop(&mut self)
+    {
+        // here we pass the possibly modified uv section to the sprite
+        self.0.uv_idx = self.1.index
     }
 }
