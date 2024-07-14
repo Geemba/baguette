@@ -68,6 +68,11 @@ impl Renderer<'_>
         let (width, heigth) = self.0.ctx.read().screen.size();
         (width.cast(), heigth.cast())
     }
+    
+    pub fn set_background_color(&mut self, r: f64, g: f64, b: f64)
+    {
+        self.0.set_clear_color(r, g, b)
+    }
 }
 
 /// this is handled by the engine
@@ -92,6 +97,17 @@ pub struct RendererData
 // integration specific
 impl RendererData
 {
+    pub fn set_clear_color(&mut self, r: f64, g: f64, b: f64)
+    {
+        self.clear_color = wgpu::Color
+        {
+            r,
+            g,
+            b,
+            a: 1.0,
+        }
+    }
+
     fn camera(&mut self) -> std::cell::RefMut<CameraData>
     {
         self.camera.data.borrow_mut()
@@ -444,7 +460,7 @@ impl RendererData
     }
 
     /// returns the backend of the adapter
-    fn backend(&self) -> wgpu::Backend
+    pub fn backend(&self) -> wgpu::Backend
     {
         self.adapter.get_info().backend
     }
