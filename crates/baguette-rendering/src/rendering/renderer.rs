@@ -32,13 +32,6 @@ impl Renderer<'_>
     {
         self.0.camera.clone()
     }
-
-    pub fn add_sprite_renderer(&mut self)
-    {
-        println!("renderer added");
-        self.0.passes
-            .get_or_insert_with(Default::default);        
-    }
     
     /// loads a sprite from a [SpriteBuilder] to be rendered,
     pub fn add_sprite(&mut self, sprite: SpriteBuilder) -> Sprite
