@@ -31,12 +31,54 @@ impl AppHandler
 {
     pub fn new(w_attributes: WindowAttributes, fsm: Fsm) -> Self
     {
+        setup_logger().unwrap();
+
         Self
         {
             data: AppData::new(w_attributes),
             fsm
         }
     }
+}
+
+/// initialize the logger
+///
+/// will return an error if it was already called
+fn setup_logger() -> Result<(), log::SetLoggerError>
+{
+    use owo_colors::*;
+
+    fern::Dispatch::new()
+        .format
+        (
+            |out, message, record| out.finish
+            (
+                format_args!("[{}] {}: {}",
+
+                match record.level()
+                {
+                    log::Level::Error => record.level().red().to_string(),
+                    log::Level::Warn => record.level().yellow().to_string(),
+                    log::Level::Info => record.level().green().to_string(),
+                    log::Level::Debug => record.level().cyan().to_string(),
+                    log::Level::Trace => record.level().blue().to_string(),
+                },
+
+                record.target().dimmed(),
+                message)
+            )
+        )
+        .level_for("wgpu_hal", log::LevelFilter::Error)
+        .level_for("wgpu_core", log::LevelFilter::Error)
+        .level_for("naga", log::LevelFilter::Warn)
+        .level_for("wgpu", log::LevelFilter::Warn)
+        .level(match cfg!(debug_assertions)
+        {
+            true => log::LevelFilter::Debug,
+            false => log::LevelFilter::Error
+        })
+        .chain(std::io::stdout())
+        .apply()
 }
 
 impl ApplicationHandler for AppHandler
