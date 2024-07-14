@@ -20,6 +20,7 @@ pub struct AppBuilder<T>
 {
     /// keeps track of how to create the application window
     w_attributes: window::WindowAttributes,
+    clear_color: Option<(f64, f64, f64)>,
     /// whether the app window will be focused or not
     focus: bool,
     fsm: T
@@ -39,7 +40,8 @@ pub fn new() -> AppBuilder<UninitDynFsm>
     {
         w_attributes: window::Window::default_attributes(),
         fsm: Default::default(),
-        focus: true
+        focus: true,
+        clear_color: None,
     }
 }
 
@@ -65,6 +67,15 @@ impl AppBuilder<UninitDynFsm>
         self
     }
     
+    /// sets the `clear color` of the `background`,
+    /// 
+    /// accepted values are between `0.` and `1.`
+    pub fn set_clear_color(mut self, r: f64, g: f64, b: f64) -> Self
+    {
+        self.clear_color = Some((r, g, b));
+        self
+    }
+
     /// run the event loop
     pub fn run(self)
     {
