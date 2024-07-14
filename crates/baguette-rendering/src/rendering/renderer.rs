@@ -313,6 +313,29 @@ impl RendererData
             compatible_surface: None
         })).expect("bruh failed to find an appropriate adapter");
 
+        #[cfg(debug_assertions)]
+        {
+            use owo_colors::*;
+
+            let info = adapter.get_info();
+            
+            log::info!
+            (
+                "{} {{ backend: {}, using {:?}: {} }}",
+                "Adapter".blue(),
+                info.backend,
+                info.device_type,
+                info.name,
+                
+            );
+        }
+
+        // features that must be enabled for the app to work
+        let required_features = Features::TEXTURE_BINDING_ARRAY
+        | Features::UNIFORM_BUFFER_AND_STORAGE_TEXTURE_ARRAY_NON_UNIFORM_INDEXING
+        | Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING
+        | Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES;
+
         let (device, queue) = pollster::block_on
         (
             adapter.request_device
@@ -320,7 +343,7 @@ impl RendererData
                 &DeviceDescriptor
                 {
                     label: Some("renderer device"),
-                    required_features: adapter.features(),
+                    required_features,
                     required_limits: adapter.limits(),
                 }, 
                 None
