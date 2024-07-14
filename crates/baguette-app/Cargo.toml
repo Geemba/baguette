@@ -8,3 +8,6 @@ license.workspace = true
 ahash = "*"
 input = { workspace = true }
 rendering = { workspace = true }
+log = { workspace = true }
+fern = "*"
+owo-colors = { workspace = true }

@@ -23,7 +23,9 @@ app = { package = "baguette-app", path = "crates/baguette-app" }
 input = { package = "baguette-input", path = "crates/baguette-input" }
 baguette-math = { package = "baguette-math", path = "crates/baguette-math" }
 rendering = { package = "baguette-rendering", path = "crates/baguette-rendering" }
-serde = {version = "*", features = ["derive"]}
+serde = { version = "*", features = ["derive"] }
+log = "*"
+owo-colors = "*"
 
 [profile.dev]
 opt-level = 0

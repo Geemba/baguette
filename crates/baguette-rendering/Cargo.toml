@@ -7,6 +7,8 @@ license.workspace = true
 [dependencies]
 wgpu = { version = "0.20.1", features = ["serde"]}
 serde = { workspace = true }
+log = { workspace = true }
+owo-colors = { workspace = true }
 pollster = "*"
 bincode = "*"
 bytemuck = { version = "*", features = ["derive"]}
