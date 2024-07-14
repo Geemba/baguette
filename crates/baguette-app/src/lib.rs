@@ -1,13 +1,17 @@
 #[path ="dispatch/dynamic.rs"]
 pub mod dynamic;
 
-pub mod application;
-use std::any::{Any, TypeId};
 
+pub mod application;
 pub use application::*;
+
 pub use rendering::*;
 
 pub use dynamic::*;
+
+pub use log;
+
+use std::any::{Any, TypeId};
 
 pub trait Dispatcher
 {
@@ -83,22 +87,26 @@ impl Default for StateId
 }
 
 #[macro_export]
-/// changes state if the predicate returns `true`
+/// evaluates a predicate, if the result is `true` it will transition to the other state
 /// ```
 /// transitions!
 /// [
-///     |_| false => Test
+///     |app: &mut App, state: Test|
+///     predicate => OtherState,
+///     app.get_key_down(input::KeyCode::Enter) => OtherState
 /// ])
 /// ```
 macro_rules! transitions
 {
-    [$($lbracket:tt $first_closure:tt, $second_closure:tt $rbracket:tt $predicate:expr => $type:ident),*] =>
+    ($($predicate:expr => $type:ident),*) =>
     {
-       || vec![$(($lbracket $first_closure, $second_closure $rbracket $predicate, $type::id())),*]
+        $(
+            if $predicate
+            {
+                return Some(baguette::app::StateId::of::<$type>());
+            }
+            
+        )*
+        return None;
     };
 }
-
-//pub trait OnBeforeScreenRedraw : Sync
-//{
-//    fn on_before_screen_redraw(&mut self);
-//}
