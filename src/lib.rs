@@ -80,7 +80,12 @@ impl AppBuilder<UninitDynFsm>
     pub fn run(self)
     {
         let eventloop = event_loop::EventLoop::new().unwrap();
-        let _ = eventloop.run_app(&mut AppHandler::new(self.w_attributes, Fsm::Unactive(self.fsm)));
+        
+        eventloop.run_app
+        (
+            &mut AppHandler::new(self.w_attributes, self.clear_color, Fsm::Unactive(self.fsm))
+        )
+        .unwrap();
     }
 }
 
