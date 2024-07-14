@@ -35,14 +35,14 @@ impl Drop for Sprite
 {
     fn drop(&mut self)
     {
-        println!("drop sprite");
-
         let mut write_guard = self.handle.write();
         
         // if this is none it means the spritepass has been dropped and 
         // it handled deallocation already
-        if write_guard.sprites.swap_remove(&self.id).is_some()
+        if let Some(this) = write_guard.sprites.swap_remove(&self.id)
         {
+            log::debug!("drop sprite '{}'", this.texture.label);
+
             drop(write_guard);
             self.handle.update_binding(&self.ctx.read())
         }
@@ -161,8 +161,11 @@ pub struct SpriteInstance
     pub orientation: Quat,
     pub scale: Vec3,
     /// if the sprite is sliced it indicates the index of the tile being rendered,
-    /// if not, it won't do anything
-    pub uv_idx: u32,
+    /// if not, it won't do anything,
+    /// 
+    /// `0..row * columns` is the range of allowed values, where rows and columns are the number of 
+    /// rows and columns that this texture is sliced by
+    pub(crate) uv_idx: u32,
 }
 
 impl Default for SpriteInstance
