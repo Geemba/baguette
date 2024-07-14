@@ -4,6 +4,7 @@ use crate::*;
 
 pub struct TextureData
 {
+    pub(crate) label: Box<str>,
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
     pub sampler: wgpu::Sampler,
@@ -93,7 +94,7 @@ impl TextureData
             }
         );
 
-        Some(Self { texture, view, sampler})
+        Some(Self { texture, view, sampler, label: label.unwrap_or_default().into() })
     }
 
     pub fn size(&self) -> Vec2
