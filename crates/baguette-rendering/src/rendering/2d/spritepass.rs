@@ -316,7 +316,7 @@ impl SpriteBuilder
             [scale.x, scale.y]
         ];
 
-        let texture = crate::TextureData { texture, view, sampler };
+        let texture = crate::TextureData { texture, view, sampler, label: path.to_string_lossy().to_string().into() };
 
         let slice = SpriteSlice::new(vertices, rows, columns);
 
