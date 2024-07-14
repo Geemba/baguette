@@ -42,7 +42,7 @@ impl AppState for TestA
         {
             true =>
             {
-                for (.., section) in self.sprite.iter_layer_mut(0)
+                for mut section in self.sprite.iter_layer_mut(0)
                 {
                     section.next_or_first();
                 }
