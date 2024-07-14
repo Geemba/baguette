@@ -29,13 +29,16 @@ pub struct AppHandler
 
 impl AppHandler
 {
-    pub fn new(w_attributes: WindowAttributes, fsm: Fsm) -> Self
+    /// creates a new [`AppHandler`]
+    ///
+    /// panics if called more than once
+    pub fn new(w_attributes: WindowAttributes, color: Option<(f64, f64, f64)>, fsm: Fsm) -> Self
     {
         setup_logger().unwrap();
 
         Self
         {
-            data: AppData::new(w_attributes),
+            data: AppData::new(w_attributes, color),
             fsm
         }
     }
@@ -113,12 +116,16 @@ impl ApplicationHandler for AppHandler
                     match err
                     {
                         // Reconfigure the surface if it's lost or outdated
-                        rendering::SurfaceError::Lost | rendering::SurfaceError::Outdated => println!("surface lost or outdated, reconnecting"),
+                        rendering::SurfaceError::Lost | rendering::SurfaceError::Outdated => log::error!("surface lost or outdated, reconnecting"),
 
                         // The system is out of memory, we should probably quit
-                        rendering::SurfaceError::OutOfMemory => target.exit(),
+                        rendering::SurfaceError::OutOfMemory =>
+                        {
+                            log::error!("system out of memory");
+                            target.exit()
+                        },
 
-                        rendering::SurfaceError::Timeout => println!("surface timeout")
+                        rendering::SurfaceError::Timeout => log::error!("surface timeout")
                     }
                 }
                 
@@ -126,7 +133,7 @@ impl ApplicationHandler for AppHandler
                 self.data.input.flush_released_keys()
             }
             
-            // do cleanup on exiting, not here,
+            // this directs us to ApplicationHandler::on_exiting, where we do our cleanup
             WindowEvent::CloseRequested => target.exit(),
             
             WindowEvent::Resized(new_size) if new_size.width > 0 && new_size.height > 0 =>
@@ -148,6 +155,7 @@ impl ApplicationHandler for AppHandler
     
     fn exiting(&mut self, _event_loop: &ActiveEventLoop)
     {
+        log::debug!("exiting");
         self.fsm.clear()
     }
 
@@ -159,12 +167,12 @@ impl ApplicationHandler for AppHandler
 
 impl AppData
 {
-    pub fn new(w_attributes: WindowAttributes) -> Self
+    pub fn new(w_attributes: WindowAttributes, color: Option<(f64,f64,f64)>) -> Self
     {
         Self
         {
             input: Default::default(),
-            renderer: rendering::RendererData::new(w_attributes),
+            renderer: rendering::RendererData::new(w_attributes, color),
             focused: true,
         }
     }
