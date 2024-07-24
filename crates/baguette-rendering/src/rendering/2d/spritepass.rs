@@ -199,9 +199,15 @@ impl SpriteBuilder
             .into_iter()
             .collect::<Vec<_>>();
 
-        if !instances.is_empty()
+        match instances.is_empty()
         {
-            self.instances.insert(LAYER, instances);
+            true =>
+            {
+                self.instances.insert(LAYER, vec![Default::default()]);
+            }
+            false =>
+            {
+                self.instances.insert(LAYER, instances);
         }
         
         self
