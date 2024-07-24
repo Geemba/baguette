@@ -201,14 +201,9 @@ impl SpriteBuilder
 
         match instances.is_empty()
         {
-            true =>
-            {
-                self.instances.insert(LAYER, vec![Default::default()]);
-            }
-            false =>
-            {
-                self.instances.insert(LAYER, instances);
-        }
+            true => self.instances.insert(LAYER, vec![Default::default()]),
+            false => self.instances.insert(LAYER, instances),
+        };
         
         self
     }
