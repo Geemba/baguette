@@ -7,7 +7,7 @@
 
 - hardware accelerated 2d renderer, backed (*or baked*) by wgpu
 - sprites, spritesheets, tilemaps supported
-- cross platform on all major OSs
+- cross platform on all major OSs (todo: mobile)
 
 ## License
 
