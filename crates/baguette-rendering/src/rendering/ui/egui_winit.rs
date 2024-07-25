@@ -4,16 +4,11 @@
 //! updates the cursor, open links clicked in egui, etc.
 //!
 //! ## Feature flags
-#![cfg_attr(feature = "document-features", doc = document_features::document_features!())]
 //!
 
 #![allow(clippy::manual_range_contains)]
 
-#[cfg(feature = "accesskit")]
-pub use accesskit_winit;
 pub use egui;
-#[cfg(feature = "accesskit")]
-use egui::accesskit;
 use egui::{Pos2, Rect, Vec2, ViewportCommand, ViewportId};
 pub use input::winit;
 
@@ -82,9 +77,6 @@ pub struct State {
     /// track ime state
     input_method_editor_started: bool,
 
-    #[cfg(feature = "accesskit")]
-    accesskit: Option<accesskit_winit::Adapter>,
-
     //allow_ime: bool,
 }
 
@@ -114,9 +106,6 @@ impl State {
 
             input_method_editor_started: false,
 
-            #[cfg(feature = "accesskit")]
-            accesskit: None,
-
             //allow_ime: false,
         };
 
@@ -130,21 +119,6 @@ impl State {
             this.set_max_texture_side(max_texture_side);
         }
         this
-    }
-
-    #[cfg(feature = "accesskit")]
-    pub fn init_accesskit<T: From<accesskit_winit::ActionRequestEvent> + Send>(
-        &mut self,
-        window: &Window,
-        event_loop_proxy: winit::event_loop::EventLoopProxy<T>,
-        initial_tree_update_factory: impl 'static + FnOnce() -> accesskit::TreeUpdate + Send,
-    ) {
-        crate::profile_function!();
-        self.accesskit = Some(accesskit_winit::Adapter::new(
-            window,
-            initial_tree_update_factory,
-            event_loop_proxy,
-        ));
     }
 
     /// Call this once a graphics context has been created to update the maximum texture dimensions
@@ -195,11 +169,6 @@ impl State {
         window: &Window,
         event: &winit::event::WindowEvent,
     ) -> EventResponse {
-
-        #[cfg(feature = "accesskit")]
-        if let Some(accesskit) = &self.accesskit {
-            accesskit.process_event(window, event);
-        }
 
         use winit::event::WindowEvent;
         match event {
@@ -410,16 +379,6 @@ impl State {
                 }
             }
         }
-    }
-
-    /// Call this when there is a new [`accesskit::ActionRequest`].
-    ///
-    /// The result can be found in [`Self::egui_input`] and be extracted with [`Self::take_egui_input`].
-    #[cfg(feature = "accesskit")]
-    pub fn on_accesskit_action_request(&mut self, request: accesskit::ActionRequest) {
-        self.egui_input
-            .events
-            .push(egui::Event::AccessKitActionRequest(request));
     }
 
     fn on_mouse_button_input
@@ -723,13 +682,6 @@ impl State {
 
         if let Some(open_url) = open_url {
             open_url_in_browser(&open_url.url);
-        }
-
-        #[cfg(feature = "accesskit")]
-        if let Some(accesskit) = self.accesskit.as_ref() {
-            if let Some(update) = accesskit_update {
-                accesskit.update_if_active(|| update);
-            }
         }
     }
 
@@ -1065,10 +1017,6 @@ impl State {
 }
 
 fn open_url_in_browser(_url: &str) {
-    #[cfg(feature = "webbrowser")]
-    if let Err(err) = webbrowser::open(_url) {
-        log::warn!("Failed to open url: {}", err);
-    }
 
     //#[cfg(not(feature = "webbrowser"))]
     //{
