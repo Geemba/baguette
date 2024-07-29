@@ -20,3 +20,5 @@ parking_lot = { version = "*", features = ["arc_lock"]}
 
 egui = { version = "*", features = ["bytemuck"]}
 type-map = "*"
+
+glidesort = "*"
