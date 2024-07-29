@@ -3,9 +3,6 @@ use util::TBuffer;
 
 use crate::*;
 
-/// 4 x 4 matrix
-type Matrix = [[f32; 4]; 4];
-
 #[derive(Clone)]
 /// a handle to the scenes camera
 pub struct Camera
@@ -40,9 +37,9 @@ pub(crate) struct CameraData
     pub bindings: CameraBinding
 }
 
-pub struct CameraBinding
+pub(crate) struct CameraBinding
 {
-    pub view_buffer: TBuffer<Matrix>,
+    pub view_buffer: TBuffer<Mat4>,
     pub bindgroup: wgpu::BindGroup,
 }
 
@@ -71,15 +68,15 @@ pub(crate) fn camera_bindgroup_layout(ctx: &ContextHandleInner) -> wgpu::BindGro
     let buffer = ctx.create_buffer
     (
         Some("Camera Buffer"),
-        core::mem::size_of::<Matrix>(),
+        core::mem::size_of::<Mat4>(),
         wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         false
     );
 
-    let bind_group = ctx.create_bindgroup(wgpu::BindGroupDescriptor
-    {
-        layout: &camera_bindgroup_layout(ctx),
-        entries:
+    let bind_group = ctx.create_bindgroup
+    (
+        Some("camera_bindgroup"),
+        &camera_bindgroup_layout(ctx),
         &[
             wgpu::BindGroupEntry
             {
@@ -87,8 +84,7 @@ pub(crate) fn camera_bindgroup_layout(ctx: &ContextHandleInner) -> wgpu::BindGro
                 resource: buffer.as_entire_binding(),
             }
         ],
-        label: Some("camera_bindgroup"),
-    });
+    );
 
     CameraBinding { view_buffer: buffer, bindgroup: bind_group }
 }
@@ -113,7 +109,7 @@ impl CameraData
     pub(crate) fn update(&mut self, ctx: &parking_lot::RwLockReadGuard<'_, renderer::ContextHandleInner>)
     {
         // we rebuild the projection and pass it to the gpu as array
-        let uniform = self.projection.screen_space_matrix().to_cols_array_2d();
+        let uniform = self.projection.screen_space_matrix();
     
         // and we queue a buffer write to update the actual matrix on the gpu
         ctx.write_entire_buffer(&self.bindings.view_buffer, &[uniform]);
@@ -257,34 +253,34 @@ impl CameraProjection
     {
         self.projection = match self.mode
         {
-            ProjectionMode::Perspective => math::Mat4::perspective_rh_gl(self.fovy, aspect, self.near_clip, self.far_clip),
+            ProjectionMode::Perspective => Mat4::perspective_rh_gl(self.fovy, aspect, self.near_clip, self.far_clip),
             ProjectionMode::Orthographic => 
             {
                 let top = self.fovy;
                 let right = top * aspect;
 
-                math::Mat4::orthographic_rh(-right, right, -top, top, self.near_clip, self.far_clip)
+                Mat4::orthographic_rh(-right, right, -top, top, self.near_clip, self.far_clip)
             }
         }
     }
 
     #[inline]
     /// converts the projection matrix to a buffer readable format
-    fn screen_space_matrix(&self) -> math::Mat4
+    fn screen_space_matrix(&self) -> Mat4
     {
         self.projection * self.view_matrix()
     }
 
     #[inline]
-    fn view_matrix(&self) -> math::Mat4
+    fn view_matrix(&self) -> Mat4
     {
-        math::Mat4::from_quat(self.orientation) * math::Mat4::from_translation(-self.translation)
+        Mat4::from_quat(self.orientation) * Mat4::from_translation(-self.translation)
     }
     
     #[inline]
     #[must_use]
-    pub fn recalculate_orientation(&self) -> math::Quat
+    pub fn recalculate_orientation(&self) -> Quat
     {
-        math::Quat::from_euler(math::EulerRot::XYZ, self.yaw, self.pitch, self.roll)
+        Quat::from_euler(EulerRot::XYZ, self.yaw, self.pitch, self.roll)
     }
 }
