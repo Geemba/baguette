@@ -56,11 +56,27 @@ impl ContextHandleInner
     {
         device(self).create_bind_group_layout(&desc)
     }
+
     #[inline]
-    pub fn create_bindgroup(&self, desc: BindGroupDescriptor) -> wgpu::BindGroup
+    pub fn create_bindgroup
+    (
+        &self,
+        label: Option<&str>,
+        layout: &BindGroupLayout,
+        entries: &[BindGroupEntry]
+
+    ) -> wgpu::BindGroup
     {
+        let desc = wgpu::BindGroupDescriptor
+        {
+            label,
+            layout,
+            entries,
+        };
+
         device(self).create_bind_group(&desc)
     }
+
     #[inline]
     pub(crate) fn create_buffer_init<T: NoUninit>
     (
