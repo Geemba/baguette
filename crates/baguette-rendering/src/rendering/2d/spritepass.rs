@@ -14,100 +14,116 @@ const SPRITE_INSTANCES_INITIAL_CAPACITY: usize = 50;
 #[derive(Default)]
 pub(crate) struct SpritePass
 {
-    sprites: Handle,
-    instances: Vec<SpriteInstanceRaw>,
+    handle: Handle,
+    instances: FastIndexMap<u8, Vec<SpriteInstanceRaw>>,
+    sort_scratch_buffer: Vec<SpriteInstanceRaw>,
 }
 
 impl SpritePass
 {
-    pub fn add_sprite(&mut self, ctx: ContextHandle, builder: SpriteBuilder) -> Sprite
+    pub fn add_sprite(&mut self, ctx: ContextHandle, builder: SpriteBuilder, layers: Layers2D) -> Sprite
     {
         let id = baguette_math::rand::u16(..);
 
-        let sprite = Sprite::_crate_impl_new
-        (
-            id, self.sprites.clone(), ctx.clone()
-        );
+        let sprite = Sprite
+        {
+            id,
+            layers,
+            handle: self.handle.clone(),
+            ctx: ctx.clone(),
+        };
 
         let ctx = &ctx.read();
 
-        self.sprites.write().sprites.insert(id, builder.build(ctx));
-        self.sprites.update_binding(ctx);
+        self.handle.write().sprites.insert(id, builder.build(ctx));
+        self.handle.update_binding(ctx);
 
         sprite
     }
 
-    /// Safety: this function locks the [Handle] exclusively,
-    /// be sure to call [Self::draw] after to unlock access
     pub(crate) fn prepare_instances(&mut self)
     {
         self.instances.clear();
 
-        // Safety: lock shared, unlocking is done by the draw function 
-        // which is called right after
-        let sprites = &self.sprites.read().sprites;
+        let sprites = &self.handle.read().sprites;
 
         for i in 0..sprites.len()
         {
             let sprite = &sprites[i];
 
-            for (.., new_instances) in sprite.layers.iter()
+            for (layer, instances) in sprite.layers.iter()
             {
-                let mut layer_instances = new_instances.iter().map
+                let s = instances.iter().map
                 (
                     |instance| instance.as_raw(&sprite.slice, sprite.pivot, i as u32)
-                ).collect();
+                );
 
-                self.instances.append(&mut layer_instances)
+                match self.instances.get_mut(layer)
+                {
+                    Some(layer_instances) => layer_instances.extend(s),
+                    None =>
+                    {
+                        self.instances.insert(*layer, s.collect());
+                    },
+                }
             }     
         }
     
-        self.instances.sort_unstable_by
-        (
-            |instance, other|
-            {
-                // instance
-        
-                let instance_pivot = sprites[instance.bind_idx as usize].pivot.unwrap_or_default().y;
-                    
-                let instance_y_pos = instance.transform[3][1]; // [3] is the translation, [1] is the y position
-        
-                // other
-        
-                let other_pivot = sprites[other.bind_idx as usize].pivot.unwrap_or_default().y;
-        
-                let other_y_pos = other.transform[3][1]; // [3] is the translation, [1] is the y position
-        
-                //
-        
-                f32::total_cmp
-                (
-                    &(instance_y_pos + instance_pivot), 
-                    &(other_y_pos + other_pivot) 
-                ).reverse()
-            }
-        )   
+        for layer in self.instances.values_mut()
+        {
+            glidesort::sort_with_vec_by
+            (
+                layer, &mut self.sort_scratch_buffer, |instance, other|
+                {
+                    // instance
+            
+                    let instance_pivot = sprites[instance.bind_idx as usize].pivot.unwrap_or_default().y;
+                        
+                    let instance_y_pos = instance.transform[3][1]; // [3] is the translation, [1] is the y position
+            
+                    // other
+            
+                    let other_pivot = sprites[other.bind_idx as usize].pivot.unwrap_or_default().y;
+            
+                    let other_y_pos = other.transform[3][1]; // [3] is the translation, [1] is the y position
+            
+                    //
+            
+                    f32::total_cmp
+                    (
+                        &(instance_y_pos + instance_pivot), 
+                        &(other_y_pos + other_pivot) 
+                    ).reverse()
+                }
+            );
+        }
+
+        self.sort_scratch_buffer.clear();
     }
 
-    /// Safety: must be called after [Self::prepare_instances]
     pub(crate) fn draw<'a>
     (
         &'a self,
         ctx: &ContextHandleInner,
         pass: &mut wgpu::RenderPass<'a>,
         camera: &'a camera::CameraData,
+        layer: u8
     )
     {
         use parking_lot::lock_api::RawRwLock;
 
-        let instances = &self.instances;
+        let Some(instances) = self.instances.get(&layer)
+        else 
+        {
+            panic!("layer not found");
+        };
 
-        // Safety: lock shared and pass the bindings
+        // Safety: lock shared and unlock at the end of the scope
         let bindings = unsafe
         {
-            self.sprites.raw().lock_shared();
+            self.handle.raw().lock_shared();
 
-            self.sprites.as_ptr()
+            self.handle.as_ptr()
                 .as_ref().binding
                 .as_ref().unwrap()
         };
@@ -124,15 +140,15 @@ impl SpritePass
 
         pass.draw(0..SPRITE_INDICES_U32.len() as u32, 0..instances.len() as u32);
 
-        // Safety: lock has been locked in the lines before
+        // Safety: lock has been locked at the beginning of the scope
         unsafe 
         {
-            self.sprites.raw().unlock_shared()
+            self.handle.raw().unlock_shared()
         }
     }
 }
 
-/// describes the type of sprite you want to create
+/// describes the type of sprite to create
 pub struct SpriteBuilder
 {
     /// directory of the source
@@ -158,19 +174,14 @@ impl SpriteBuilder
 {
     pub fn new(path: impl Into<std::path::PathBuf>) -> Self
     {
-
-        let mut instances = FastIndexMap::default();
-        instances.insert(0, vec![Default::default()]);
-
         Self
         {
             path: path.into(),
             filtermode: None,
             pivot: None,
-            instances,
+            instances: FastIndexMap::default(),
             pxunit: 100.,
-            rows: 1,
-            columns: 1,
+            rows: 1, columns: 1,
         }
     }
 
@@ -208,7 +219,7 @@ impl SpriteBuilder
         self
     }
 
-    /// if this is an atlas, pass many rows and columns it has
+    /// describes the rows and columns of the [Sprite]
     pub fn tiled_atlas(mut self, rows: u32, columns: u32) -> Self
     {
         self.rows = u32::max(1, rows);
@@ -216,12 +227,17 @@ impl SpriteBuilder
         self
     }
 
-        /// loads a [`SpriteBinding`] from a [crate::SpriteBuilder].
+    /// loads a [`SpriteBinding`] from a [crate::SpriteBuilder].
     ///
     /// panics if the path is not found
     pub fn build(self, ctx: &ContextHandleInner) -> SpriteInner
     {
-        let SpriteBuilder { ref path, filtermode, pivot, instances, pxunit, rows, columns } = self;
+        let SpriteBuilder { ref path, filtermode, pivot, mut instances, pxunit, rows, columns } = self;
+
+        if instances.is_empty()
+        {
+            instances.insert(0, vec![Default::default()]);
+        }
 
         let image = image::io::Reader::open(path)
             .unwrap()
@@ -439,7 +455,7 @@ impl SpriteBinding
         let shader = ctx.create_shader_module(wgpu::ShaderModuleDescriptor 
         {
             label: Some("sprite shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!(r"sprite.wgsl").into())
+            source: wgpu::ShaderSource::Wgsl(include_str!("sprite.wgsl").into())
         });
 
         SpriteBinding
@@ -490,11 +506,11 @@ impl SpriteBinding
             both of them should have been equal"
         );
 
-        ctx.create_bindgroup(BindGroupDescriptor
-        {
-            label: Some("sprite bindgroup"),
-            layout: &bindgroup_layout(ctx, textures.len()),
-            entries: &
+        ctx.create_bindgroup
+        (
+            Some("sprite bindgroup"),
+            &bindgroup_layout(ctx, textures.len()),
+            &
             [
                 BindGroupEntry
                 {
@@ -531,7 +547,7 @@ impl SpriteBinding
                     resource: uv_uniform.as_entire_binding()        
                 }
             ],
-        })
+        )
     }
 
     fn create_pipeline
