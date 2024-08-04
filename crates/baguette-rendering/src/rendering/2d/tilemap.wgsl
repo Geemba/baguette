@@ -3,7 +3,6 @@ struct VertexOutput
     @builtin(position) clip_position: vec4<f32>,
     @location(0) tex_coords: vec2<f32>,
     @location(1) bind_index: u32,
-    @location(2) layer: f32
 }
 
 struct TileMap
@@ -28,7 +27,6 @@ struct Tile
 	@location(3) row: u32,
 	@location(4) column: u32,
 	@location(5) bind_idx: u32, // the index of the texture in the array
-    @location(6) layer: f32,
 }
 
 @group(0) @binding(0) var<uniform> camera_proj: mat4x4<f32>;
@@ -61,7 +59,6 @@ struct Tile
         vec4<f32>(pos.xy + tile.pos.xy, 0., 1.),
         tex_coords,
         tile.bind_idx,
-        tile.layer
     );
 }
 
