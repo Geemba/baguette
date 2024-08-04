@@ -44,10 +44,7 @@ impl SpriteSheet
 
         let iter = self.inner.iter_layer(layer).zip(other);
 
-        Iter
-        {
-            iter
-        }
+        Iter(iter)
     }
 
     /// iters the layer mutably.
@@ -63,14 +60,7 @@ impl SpriteSheet
     }
 }
 
-pub struct Iter<'a>
-{
-    iter: std::iter::Zip
-    <
-        sprite::IterLayer<'a>,
-        slice::Iter<'a, SliceSection>
-    >,
-}
+pub struct Iter<'a>(std::iter::Zip<sprite::IterLayer<'a>, slice::Iter<'a, SliceSection>>);
 
 impl<'a> Iterator for Iter<'a>
 {
@@ -78,7 +68,7 @@ impl<'a> Iterator for Iter<'a>
     
     fn next(&mut self) -> Option<Self::Item>
     {
-        self.iter.next()
+        self.0.next()
     }
 }
 
@@ -304,7 +294,7 @@ pub trait IntoIndices
 {
     /// converts an iteration to an array of indices
     /// aligned to the correct uv instance uvs
-    fn into_indices(self, rows: u32, columns: u32) -> Option<Tiles> ;
+    fn into_indices(self, rows: u32, columns: u32) -> Option<Tiles>;
 }
 
 impl IntoIndices for std::ops::Range<u32>
