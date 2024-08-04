@@ -10,8 +10,9 @@ struct TileMap
 {
     rows: f32,
     columns: f32,
-    size: mat4x2<f32>,
-    _padding: vec2<f32>
+    vertices: mat4x2<f32>,
+    // the size of one tile
+    size: vec2<f32>
 }
 
 struct VertexInput
